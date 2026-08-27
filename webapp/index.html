@@ -2659,7 +2659,7 @@
     <script>
         
         // --- Deployment & Telegram Mini App Configuration ---
-        const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbz-DyxCMejx12BWg8c4lgOqvn0xvE8VvVQnzQ29JU4/exec';
+        const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzXA030SuoU4BWcho-zRdsZTpA4mYoacyScIN4aODocjgHW4GzgqtDSOSJeCA1nuqvJ/exec';
 
         // Telegram WebApp Initialization
         const isTelegram = (typeof window.Telegram !== 'undefined' && window.Telegram.WebApp && window.Telegram.WebApp.initData);
@@ -2687,9 +2687,15 @@
                 payload = payload || {};
                 payload.action = action;
                 
-                // Server validates this signed payload before trusting the Telegram user.
-                if (isTelegram && window.Telegram.WebApp.initData) {
-                    payload.telegramInitData = window.Telegram.WebApp.initData;
+                // Auto attach Telegram user context
+                if (telegramUser && telegramUser.id) {
+                    payload.telegramId = String(telegramUser.id);
+                    payload.telegramUserName = telegramUser.first_name || '';
+                }
+
+                // Attach active user email / role if selected
+                if (currentUserAuth && currentUserAuth.email) {
+                    payload.email = currentUserAuth.email;
                 }
 
                 if (typeof google !== 'undefined' && google.script && google.script.run) {
@@ -3305,7 +3311,10 @@
                 }
             }, 8000);
 
-            callBackend('getInitialData', {})
+            callBackend('getInitialData', {
+                telegramId: telegramUser ? String(telegramUser.id) : '',
+                email: currentUserAuth ? currentUserAuth.email : ''
+            })
             .then(function(res) {
                 clearTimeout(safetyTimeout);
                 onInitialDataSuccess(res);
@@ -3319,20 +3328,23 @@
         // 1. Sync Bitrix: Bitrix API -> Sheet -> Web App
         function handleSyncBitrix() {
             loadingOverlay.style.display = 'flex';
-            callBackend('syncBitrix', {})
-                .then(function(res) {
-                    if (res.success) {
-                        showToast('Bitrix Sync Complete', res.message || ('Pulled ' + res.newCount + ' new tasks.'));
-                        fetchInitialData();
-                    } else {
-                        showToast('Sync Failed', res.error || 'Failed to pull new tasks.', true);
+            if (typeof google !== 'undefined' && google.script) {
+                google.script.run
+                    .withSuccessHandler(function(res) {
+                        if (res.success) {
+                            showToast('Bitrix Sync Complete', res.message || ('Pulled ' + res.newCount + ' new tasks.'));
+                            fetchInitialData();
+                        } else {
+                            showToast('Sync Failed', res.error || 'Failed to pull new tasks.', true);
+                            loadingOverlay.style.display = 'none';
+                        }
+                    })
+                    .withFailureHandler(function(err) {
+                        showToast('Sync Failed', err.message || 'Unknown error occurred.', true);
                         loadingOverlay.style.display = 'none';
-                    }
-                })
-                .catch(function(err) {
-                    showToast('Sync Failed', err.message || 'Unknown error occurred.', true);
-                    loadingOverlay.style.display = 'none';
-                });
+                    })
+                    .pullAndStageNewTasks();
+            }
         }
 
         // 2. Reload Sheet: Sheet -> Web App (Fast refresh directly from sheet data)
@@ -4213,22 +4225,31 @@
                 'Next Follow Up Date': nextFollowInputVal || task.rawFollowUp || (task.nextFollowUpDate !== '-' ? task.nextFollowUpDate : '')
             };
             
-            callBackend('confirmTask', { reviewData: reviewData })
-                .then(function(res) {
-                    btn.classList.remove('loading');
-                    if (res.success) {
-                        showToast('Task Master Updated', 'Successfully added to Master Sheet: #' + task.bitrixId);
-                        removeTaskAndNext(task.id);
-                    } else {
+            if (typeof google !== 'undefined' && google.script) {
+                google.script.run
+                    .withSuccessHandler(function(res) {
+                        btn.classList.remove('loading');
+                        if (res.success) {
+                            showToast('Task Master Updated', 'Successfully added to Master Sheet: #' + task.bitrixId);
+                            removeTaskAndNext(task.id);
+                        } else {
+                            btn.disabled = false;
+                            showToast('Update Failed', res.error || 'Could not update task.', true);
+                        }
+                    })
+                    .withFailureHandler(function(err) {
+                        btn.classList.remove('loading');
                         btn.disabled = false;
-                        showToast('Update Failed', res.error || 'Could not update task.', true);
-                    }
-                })
-                .catch(function(err) {
+                        showToast('Error', err.message || 'Connection failed.', true);
+                    })
+                    .confirmTask(reviewData);
+            } else {
+                setTimeout(function() {
                     btn.classList.remove('loading');
-                    btn.disabled = false;
-                    showToast('Error', err.message || 'Connection failed.', true);
-                });
+                    showToast('Task Master Updated', 'Successfully added to Master Sheet: #' + task.bitrixId);
+                    removeTaskAndNext(task.id);
+                }, 1000);
+            }
         }
 
         function handleSkip() {
@@ -4241,26 +4262,38 @@
                 btn.classList.add('loading');
             }
             
-            callBackend('skipTask', { bitrixId: task.bitrixId })
-                .then(function(res) {
+            if (typeof google !== 'undefined' && google.script) {
+                google.script.run
+                    .withSuccessHandler(function(res) {
+                        if (btn) {
+                            btn.classList.remove('loading');
+                            btn.disabled = false;
+                        }
+                        if (res.success) {
+                            showToast('Task Skipped', 'Skipped task #' + task.bitrixId);
+                            removeTaskAndNext(task.id);
+                        } else {
+                            showToast('Skip Failed', res.error || 'Could not skip task.', true);
+                        }
+                    })
+                    .withFailureHandler(function(err) {
+                        if (btn) {
+                            btn.classList.remove('loading');
+                            btn.disabled = false;
+                        }
+                        showToast('Error', err.message || 'Connection failed.', true);
+                    })
+                    .skipTask(task.bitrixId);
+            } else {
+                setTimeout(function() {
                     if (btn) {
                         btn.classList.remove('loading');
                         btn.disabled = false;
                     }
-                    if (res.success) {
-                        showToast('Task Skipped', 'Skipped task #' + task.bitrixId);
-                        removeTaskAndNext(task.id);
-                    } else {
-                        showToast('Skip Failed', res.error || 'Could not skip task.', true);
-                    }
-                })
-                .catch(function(err) {
-                    if (btn) {
-                        btn.classList.remove('loading');
-                        btn.disabled = false;
-                    }
-                    showToast('Error', err.message || 'Connection failed.', true);
-                });
+                    showToast('Task Skipped', 'Skipped task #' + task.bitrixId);
+                    removeTaskAndNext(task.id);
+                }, 500);
+            }
         }
 
         function handleUpdateTask(sheetKey) {
@@ -4300,26 +4333,34 @@
             task.nextFollowUpDate = nextFollowInputVal ? formatDate(nextFollowInputVal) : '-';
             task.rawFollowUp = nextFollowInputVal;
 
-            callBackend('updateTask', {
-                sheetGidKey: sheetKey,
-                taskData: updateData
-            })
-                .then(function(res) {
+            if (typeof google !== 'undefined' && google.script) {
+                google.script.run
+                    .withSuccessHandler(function(res) {
+                        btn.classList.remove('loading');
+                        btn.disabled = false;
+                        if (res.success) {
+                            showToast('Saved', 'Task #' + task.bitrixId + ' updated in sheet.');
+                            updateList();
+                            selectTask(task.id);
+                        } else {
+                            showToast('Save Failed', res.error || 'Could not update task.', true);
+                        }
+                    })
+                    .withFailureHandler(function(err) {
+                        btn.classList.remove('loading');
+                        btn.disabled = false;
+                        showToast('Error', err.message || 'Connection failed.', true);
+                    })
+                    .updateTaskInSheet(sheetKey, updateData);
+            } else {
+                setTimeout(function() {
                     btn.classList.remove('loading');
                     btn.disabled = false;
-                    if (res.success) {
-                        showToast('Saved', 'Task #' + task.bitrixId + ' updated in sheet.');
-                        updateList();
-                        selectTask(task.id);
-                    } else {
-                        showToast('Save Failed', res.error || 'Could not update task.', true);
-                    }
-                })
-                .catch(function(err) {
-                    btn.classList.remove('loading');
-                    btn.disabled = false;
-                    showToast('Error', err.message || 'Connection failed.', true);
-                });
+                    showToast('Saved', 'Task #' + task.bitrixId + ' updated in sheet.');
+                    updateList();
+                    selectTask(task.id);
+                }, 500);
+            }
         }
 
         function handleMoveTask(fromKey, toKey, targetTab) {
@@ -4352,37 +4393,52 @@
             task.nextFollowUpDate = nextFollowInputVal ? formatDate(nextFollowInputVal) : '-';
             task.rawFollowUp = nextFollowInputVal;
 
-            callBackend('moveTask', {
-                fromGidKey: fromKey,
-                toGidKey: toKey,
-                bitrixId: task.bitrixId,
-                additionalUpdates: updateData
-            })
-                .then(function(res) {
-                    if (res.success) {
-                        showToast('Moved', 'Task #' + task.bitrixId + ' moved to ' + targetTab + ' sheet.');
+            if (typeof google !== 'undefined' && google.script) {
+                google.script.run
+                    .withSuccessHandler(function(res) {
+                        if (res.success) {
+                            showToast('Moved', 'Task #' + task.bitrixId + ' moved to ' + targetTab + ' sheet.');
+                            
+                            // Move local task between tab buckets
+                            allTasksByTab[currentTab] = (allTasksByTab[currentTab] || []).filter(function(t) { return t.id !== task.id; });
+                            allTasksByTab[targetTab] = allTasksByTab[targetTab] || [];
+                            allTasksByTab[targetTab].unshift(task);
+                            
+                            updateTabBadges();
+                            tasks = allTasksByTab[currentTab] || [];
+                            updateList();
 
-                        // Move local task between tab buckets
-                        allTasksByTab[currentTab] = (allTasksByTab[currentTab] || []).filter(function(t) { return t.id !== task.id; });
-                        allTasksByTab[targetTab] = allTasksByTab[targetTab] || [];
-                        allTasksByTab[targetTab].unshift(task);
-
-                        updateTabBadges();
-                        tasks = allTasksByTab[currentTab] || [];
-                        updateList();
-
-                        if (visibleTasks.length > 0) {
-                            selectTask(visibleTasks[0].id);
+                            if (visibleTasks.length > 0) {
+                                selectTask(visibleTasks[0].id);
+                            } else {
+                                selectTask(null);
+                            }
                         } else {
-                            selectTask(null);
+                            showToast('Move Failed', res.error || 'Could not move task.', true);
                         }
+                    })
+                    .withFailureHandler(function(err) {
+                        showToast('Error', err.message || 'Connection failed.', true);
+                    })
+                    .moveTaskBetweenSheets(fromKey, toKey, task.bitrixId, updateData);
+            } else {
+                setTimeout(function() {
+                    showToast('Moved', 'Task #' + task.bitrixId + ' moved to ' + targetTab + ' sheet.');
+                    allTasksByTab[currentTab] = (allTasksByTab[currentTab] || []).filter(function(t) { return t.id !== task.id; });
+                    allTasksByTab[targetTab] = allTasksByTab[targetTab] || [];
+                    allTasksByTab[targetTab].unshift(task);
+                    
+                    updateTabBadges();
+                    tasks = allTasksByTab[currentTab] || [];
+                    updateList();
+
+                    if (visibleTasks.length > 0) {
+                        selectTask(visibleTasks[0].id);
                     } else {
-                        showToast('Move Failed', res.error || 'Could not move task.', true);
+                        selectTask(null);
                     }
-                })
-                .catch(function(err) {
-                    showToast('Error', err.message || 'Connection failed.', true);
-                });
+                }, 500);
+            }
         }
         
         function removeTaskAndNext(taskId) {
@@ -4678,17 +4734,18 @@
                         localStorage.setItem('bitrix_mandatory_fields', JSON.stringify(mandatoryFields));
                     } catch (e) {}
 
-                    callBackend('saveConfig', { configData: { mandatoryFields: mandatoryFields } })
-                        .then(function(res) {
-                            if (res.success) {
-                                showToast('Configuration Saved', 'Mandatory fields updated in sheet and app.');
-                            } else {
-                                showToast('Save Failed', res.error || 'Could not save configuration.', true);
-                            }
-                        })
-                        .catch(function(err) {
-                            showToast('Error', err.message || 'Connection failed.', true);
-                        });
+                    // Save to backend
+                    if (typeof google !== 'undefined' && google.script) {
+                        google.script.run
+                            .withSuccessHandler(function(res) {
+                                if (res.success) {
+                                    showToast('Configuration Saved', 'Mandatory fields updated in sheet and app.');
+                                }
+                            })
+                            .saveMasterConfig({ mandatoryFields: mandatoryFields });
+                    } else {
+                        showToast('Configuration Saved', 'Mandatory fields updated.');
+                    }
 
                     updateMandatoryLabelsUI();
                     validateForm();
