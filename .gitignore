@@ -1,0 +1,25 @@
+# Local/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Generated/log files
+*.log
+dist/
+build/
+
+# Local project data/export files
+*.xlsx
+*.xls
+*.csv
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Keep secrets out of GitHub.
+.env
+.env.*
+credentials*.json
+service-account*.json
