@@ -3024,6 +3024,49 @@
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
 
+    <!-- Snooze / Reminder Popover Menu -->
+    <div id="snoozePopover" class="snooze-popover hidden" onclick="event.stopPropagation()">
+        <div class="snooze-header">
+            <div class="snooze-title"><i data-lucide="bell" style="width:15px;height:15px;"></i> Snooze / Remind Me</div>
+            <button class="snooze-close" onclick="closeSnoozeMenu()">&times;</button>
+        </div>
+        <div class="snooze-options">
+            <button class="snooze-option-btn" onclick="applySnoozePreset('today_evening')">
+                <span class="snooze-opt-icon">🌆</span>
+                <div class="snooze-opt-text">
+                    <strong>Later Today</strong>
+                    <small>Today at 5:00 PM</small>
+                </div>
+            </button>
+            <button class="snooze-option-btn" onclick="applySnoozePreset('tomorrow_morning')">
+                <span class="snooze-opt-icon">🌅</span>
+                <div class="snooze-opt-text">
+                    <strong>Tomorrow Morning</strong>
+                    <small>Tomorrow at 9:00 AM</small>
+                </div>
+            </button>
+            <button class="snooze-option-btn" onclick="applySnoozePreset('next_week')">
+                <span class="snooze-opt-icon">📅</span>
+                <div class="snooze-opt-text">
+                    <strong>Next Week</strong>
+                    <small>Next Monday at 9:00 AM</small>
+                </div>
+            </button>
+        </div>
+        <div class="snooze-custom-divider"><span>OR PICK SPECIFIC DATE & TIME</span></div>
+        <div class="snooze-custom-form">
+            <input type="datetime-local" id="snoozeCustomInput" class="snooze-datetime-input">
+            <button class="btn btn-primary" style="height:36px;font-size:12.5px;width:100%;justify-content:center;" onclick="applyCustomSnooze()">
+                <i data-lucide="check"></i> Set Reminder
+            </button>
+        </div>
+        <div id="snoozeClearArea" class="snooze-clear-area hidden">
+            <button class="snooze-clear-btn" onclick="clearCurrentTaskSnooze()">
+                <i data-lucide="trash-2" style="width:13px;height:13px;"></i> Remove Reminder
+            </button>
+        </div>
+    </div>
+
     <script>
         
         // --- Deployment & Telegram Mini App Configuration ---
@@ -3173,7 +3216,8 @@
             'shield-alert': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>',
             'arrow-right-circle': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="m12 16 4-4-4-4"/></svg>',
             'check-check': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg>',
-            'trash-2': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>'
+            'trash-2': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>',
+            'bell': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>'
         };
 
         function icon(name) {
@@ -3185,18 +3229,22 @@
                 const name = el.getAttribute('data-lucide');
                 const svgStr = icon(name);
                 if (svgStr) {
-                    const span = document.createElement('span');
-                    span.innerHTML = svgStr;
-                    const svgNode = span.firstElementChild;
-                    
-                    if (el.className) {
-                        svgNode.setAttribute('class', (svgNode.getAttribute('class') || '') + ' ' + el.className);
+                    try {
+                        const span = document.createElement('span');
+                        span.innerHTML = svgStr.trim();
+                        const svgNode = span.firstElementChild;
+                        if (svgNode) {
+                            if (el.className) {
+                                svgNode.setAttribute('class', (svgNode.getAttribute('class') || '') + ' ' + el.className);
+                            }
+                            if (el.style.cssText) {
+                                svgNode.style.cssText += el.style.cssText;
+                            }
+                            el.parentNode.replaceChild(svgNode, el);
+                        }
+                    } catch(err) {
+                        console.warn('Error replacing icon ' + name, err);
                     }
-                    if (el.style.cssText) {
-                        svgNode.style.cssText += el.style.cssText;
-                    }
-                    
-                    el.parentNode.replaceChild(svgNode, el);
                 }
             });
         }
@@ -3439,7 +3487,14 @@
             btnPrev.addEventListener('click', function() { navigateTask(-1); });
             btnNext.addEventListener('click', function() { navigateTask(1); });
 
-            // Star & Read toggles in detail header
+            // Snooze, Star & Read toggles in detail header
+            const btnSnoozeHeader = document.getElementById('btnSnoozeReminder');
+            if (btnSnoozeHeader) {
+                btnSnoozeHeader.addEventListener('click', function(e) {
+                    toggleSnoozeMenu(e);
+                });
+            }
+
             if (btnToggleStar) {
                 btnToggleStar.addEventListener('click', function() {
                     if (!selectedTaskId) return;
@@ -4502,11 +4557,16 @@
                 if (typeof event.stopPropagation === 'function') event.stopPropagation();
                 if (typeof event.preventDefault === 'function') event.preventDefault();
             }
-            requestNotificationPermission();
+            window._justOpenedSnooze = true;
+            setTimeout(function() { window._justOpenedSnooze = false; }, 150);
             
             let targetId = specificTaskId || selectedTaskId;
             if (!targetId && visibleTasks.length > 0) {
                 targetId = visibleTasks[0].id;
+                selectTask(targetId);
+            }
+            if (!targetId && tasks.length > 0) {
+                targetId = tasks[0].id;
                 selectTask(targetId);
             }
             if (!targetId) {
@@ -4516,10 +4576,14 @@
             activeSnoozeTargetId = targetId;
 
             const popover = document.getElementById('snoozePopover');
-            if (!popover) return;
+            if (!popover) {
+                console.error('snoozePopover element not found in DOM!');
+                return;
+            }
 
             if (!popover.classList.contains('hidden') && popover.getAttribute('data-active-id') === String(targetId)) {
                 popover.classList.add('hidden');
+                popover.removeAttribute('data-active-id');
                 return;
             }
 
@@ -4529,8 +4593,8 @@
             let triggerEl = null;
             if (event && event.currentTarget && typeof event.currentTarget.getBoundingClientRect === 'function') {
                 triggerEl = event.currentTarget;
-            } else if (event && event.target) {
-                triggerEl = event.target.closest('#btnSnoozeReminder') || event.target.closest('.card-action-btn') || event.target.closest('button');
+            } else if (event && event.target && event.target.closest) {
+                triggerEl = event.target.closest('#btnSnoozeReminder') || event.target.closest('.card-action-btn') || event.target.closest('.bulk-action-btn') || event.target.closest('button');
             }
             if (!triggerEl) {
                 triggerEl = document.getElementById('btnSnoozeReminder');
@@ -4543,8 +4607,8 @@
                 let left = rect.left - 100;
 
                 // Adjust to stay inside window bounds
-                if (top + 380 > window.innerHeight) {
-                    top = Math.max(10, rect.top - 390);
+                if (top + 400 > window.innerHeight) {
+                    top = Math.max(10, rect.top - 410);
                 }
                 if (left + popoverWidth > window.innerWidth - 10) {
                     left = window.innerWidth - popoverWidth - 10;
@@ -4555,42 +4619,56 @@
                 popover.style.left = left + 'px';
                 popover.style.right = 'auto';
             } else {
-                popover.style.top = '100px';
-                popover.style.right = '40px';
+                popover.style.top = '90px';
+                popover.style.right = '30px';
                 popover.style.left = 'auto';
             }
             
             // Set default custom date to tomorrow 9am
-            const tm = new Date();
-            tm.setDate(tm.getDate() + 1);
-            tm.setHours(9, 0, 0, 0);
-            const isoLocal = new Date(tm.getTime() - tm.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-            const customInput = document.getElementById('snoozeCustomInput');
-            if (customInput) customInput.value = isoLocal;
+            try {
+                const tm = new Date();
+                tm.setDate(tm.getDate() + 1);
+                tm.setHours(9, 0, 0, 0);
+                const isoLocal = new Date(tm.getTime() - tm.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                const customInput = document.getElementById('snoozeCustomInput');
+                if (customInput) customInput.value = isoLocal;
+            } catch(e) {}
 
             // Check if target task has existing snooze
             const clearArea = document.getElementById('snoozeClearArea');
-            const targetTask = tasks.find(function(t) { return t.id === targetId; });
-            if (clearArea && targetTask && snoozeMap[targetTask.bitrixId]) {
-                clearArea.classList.remove('hidden');
-            } else if (clearArea) {
-                clearArea.classList.add('hidden');
+            const targetTask = tasks.find(function(t) { return t.id === targetId; }) || visibleTasks.find(function(t) { return t.id === targetId; });
+            if (clearArea) {
+                if (targetTask && typeof snoozeMap !== 'undefined' && snoozeMap[targetTask.bitrixId]) {
+                    clearArea.classList.remove('hidden');
+                } else {
+                    clearArea.classList.add('hidden');
+                }
             }
 
             popover.classList.remove('hidden');
+            replaceIcons();
+
+            // Request permission asynchronously without halting UI
+            setTimeout(requestNotificationPermission, 100);
         }
 
         function closeSnoozeMenu() {
             const popover = document.getElementById('snoozePopover');
-            if (popover) popover.classList.add('hidden');
+            if (popover) {
+                popover.classList.add('hidden');
+                popover.removeAttribute('data-active-id');
+            }
         }
 
         document.addEventListener('click', function(e) {
+            if (window._justOpenedSnooze) return;
             const popover = document.getElementById('snoozePopover');
             if (popover && !popover.classList.contains('hidden')) {
-                if (!popover.contains(e.target) && !e.target.closest('#btnSnoozeReminder') && !e.target.closest('.card-action-btn')) {
-                    popover.classList.add('hidden');
-                }
+                if (popover.contains(e.target)) return;
+                const trigger = e.target.closest ? (e.target.closest('#btnSnoozeReminder') || e.target.closest('.card-action-btn') || e.target.closest('.bulk-action-btn')) : null;
+                if (trigger) return;
+                popover.classList.add('hidden');
+                popover.removeAttribute('data-active-id');
             }
         });
 
@@ -6199,50 +6277,5 @@
         document.addEventListener('DOMContentLoaded', init);
 
     </script>
-
-
-    <!-- Snooze / Reminder Popover Menu -->
-    <div id="snoozePopover" class="snooze-popover hidden" onclick="event.stopPropagation()">
-        <div class="snooze-header">
-            <div class="snooze-title"><i data-lucide="bell" style="width:15px;height:15px;"></i> Snooze / Remind Me</div>
-            <button class="snooze-close" onclick="closeSnoozeMenu()">&times;</button>
-        </div>
-        <div class="snooze-options">
-            <button class="snooze-option-btn" onclick="applySnoozePreset('today_evening')">
-                <span class="snooze-opt-icon">🌆</span>
-                <div class="snooze-opt-text">
-                    <strong>Later Today</strong>
-                    <small>Today at 5:00 PM</small>
-                </div>
-            </button>
-            <button class="snooze-option-btn" onclick="applySnoozePreset('tomorrow_morning')">
-                <span class="snooze-opt-icon">🌅</span>
-                <div class="snooze-opt-text">
-                    <strong>Tomorrow Morning</strong>
-                    <small>Tomorrow at 9:00 AM</small>
-                </div>
-            </button>
-            <button class="snooze-option-btn" onclick="applySnoozePreset('next_week')">
-                <span class="snooze-opt-icon">📅</span>
-                <div class="snooze-opt-text">
-                    <strong>Next Week</strong>
-                    <small>Next Monday at 9:00 AM</small>
-                </div>
-            </button>
-        </div>
-        <div class="snooze-custom-divider"><span>OR PICK SPECIFIC DATE & TIME</span></div>
-        <div class="snooze-custom-form">
-            <input type="datetime-local" id="snoozeCustomInput" class="snooze-datetime-input">
-            <button class="btn btn-primary" style="height:36px;font-size:12.5px;width:100%;justify-content:center;" onclick="applyCustomSnooze()">
-                <i data-lucide="check"></i> Set Reminder
-            </button>
-        </div>
-        <div id="snoozeClearArea" class="snooze-clear-area hidden">
-            <button class="snooze-clear-btn" onclick="clearCurrentTaskSnooze()">
-                <i data-lucide="trash-2" style="width:13px;height:13px;"></i> Remove Reminder
-            </button>
-        </div>
-    </div>
-
 </body>
 </html>
