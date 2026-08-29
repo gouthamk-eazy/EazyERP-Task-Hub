@@ -2265,7 +2265,9 @@
         
         /* Snooze / Reminder Popover Styles */
         .snooze-popover {
-            position: fixed;
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
             z-index: 100005;
             width: 300px;
             background: var(--bg-secondary);
@@ -2657,10 +2659,55 @@
                                 </div>
                             </div>
                             <div class="nav-controls" style="display: flex; align-items: center; gap: 8px;">
-                                <button class="btn-header-action" id="btnSnoozeReminder" title="Snooze / Set Reminder">
-                                    <i data-lucide="clock"></i>
-                                    <span id="snoozeBtnText">Reminder</span>
-                                </button>
+                                <div style="position: relative; display: inline-flex;">
+                                    <button class="btn-header-action" id="btnSnoozeReminder" title="Snooze / Set Reminder">
+                                        <i data-lucide="clock"></i>
+                                        <span id="snoozeBtnText">Reminder</span>
+                                    </button>
+
+                                    <!-- Snooze / Reminder Popover Menu (Anchored directly to button) -->
+                                    <div id="snoozePopover" class="snooze-popover hidden" onclick="event.stopPropagation()">
+                                        <div class="snooze-header">
+                                            <div class="snooze-title"><i data-lucide="bell" style="width:15px;height:15px;"></i> Snooze / Remind Me</div>
+                                            <button class="snooze-close" onclick="closeSnoozeMenu()">&times;</button>
+                                        </div>
+                                        <div class="snooze-options">
+                                            <button class="snooze-option-btn" onclick="applySnoozePreset('today_evening')">
+                                                <span class="snooze-opt-icon">🌆</span>
+                                                <div class="snooze-opt-text">
+                                                    <strong>Later Today</strong>
+                                                    <small>Today at 5:00 PM</small>
+                                                </div>
+                                            </button>
+                                            <button class="snooze-option-btn" onclick="applySnoozePreset('tomorrow_morning')">
+                                                <span class="snooze-opt-icon">🌅</span>
+                                                <div class="snooze-opt-text">
+                                                    <strong>Tomorrow Morning</strong>
+                                                    <small>Tomorrow at 9:00 AM</small>
+                                                </div>
+                                            </button>
+                                            <button class="snooze-option-btn" onclick="applySnoozePreset('next_week')">
+                                                <span class="snooze-opt-icon">📅</span>
+                                                <div class="snooze-opt-text">
+                                                    <strong>Next Week</strong>
+                                                    <small>Next Monday at 9:00 AM</small>
+                                                </div>
+                                            </button>
+                                        </div>
+                                        <div class="snooze-custom-divider"><span>OR PICK SPECIFIC DATE & TIME</span></div>
+                                        <div class="snooze-custom-form">
+                                            <input type="datetime-local" id="snoozeCustomInput" class="snooze-datetime-input">
+                                            <button class="btn btn-primary" style="height:36px;font-size:12.5px;width:100%;justify-content:center;" onclick="applyCustomSnooze()">
+                                                <i data-lucide="check"></i> Set Reminder
+                                            </button>
+                                        </div>
+                                        <div id="snoozeClearArea" class="snooze-clear-area hidden">
+                                            <button class="snooze-clear-btn" onclick="clearCurrentTaskSnooze()">
+                                                <i data-lucide="trash-2" style="width:13px;height:13px;"></i> Remove Reminder
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                                 <button class="btn-header-action" id="btnToggleStar" title="Toggle Star / Important">
                                     <i data-lucide="star"></i>
                                     <span id="starBtnText">Star</span>
@@ -3023,49 +3070,6 @@
 
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
-
-    <!-- Snooze / Reminder Popover Menu -->
-    <div id="snoozePopover" class="snooze-popover hidden" onclick="event.stopPropagation()">
-        <div class="snooze-header">
-            <div class="snooze-title"><i data-lucide="bell" style="width:15px;height:15px;"></i> Snooze / Remind Me</div>
-            <button class="snooze-close" onclick="closeSnoozeMenu()">&times;</button>
-        </div>
-        <div class="snooze-options">
-            <button class="snooze-option-btn" onclick="applySnoozePreset('today_evening')">
-                <span class="snooze-opt-icon">🌆</span>
-                <div class="snooze-opt-text">
-                    <strong>Later Today</strong>
-                    <small>Today at 5:00 PM</small>
-                </div>
-            </button>
-            <button class="snooze-option-btn" onclick="applySnoozePreset('tomorrow_morning')">
-                <span class="snooze-opt-icon">🌅</span>
-                <div class="snooze-opt-text">
-                    <strong>Tomorrow Morning</strong>
-                    <small>Tomorrow at 9:00 AM</small>
-                </div>
-            </button>
-            <button class="snooze-option-btn" onclick="applySnoozePreset('next_week')">
-                <span class="snooze-opt-icon">📅</span>
-                <div class="snooze-opt-text">
-                    <strong>Next Week</strong>
-                    <small>Next Monday at 9:00 AM</small>
-                </div>
-            </button>
-        </div>
-        <div class="snooze-custom-divider"><span>OR PICK SPECIFIC DATE & TIME</span></div>
-        <div class="snooze-custom-form">
-            <input type="datetime-local" id="snoozeCustomInput" class="snooze-datetime-input">
-            <button class="btn btn-primary" style="height:36px;font-size:12.5px;width:100%;justify-content:center;" onclick="applyCustomSnooze()">
-                <i data-lucide="check"></i> Set Reminder
-            </button>
-        </div>
-        <div id="snoozeClearArea" class="snooze-clear-area hidden">
-            <button class="snooze-clear-btn" onclick="clearCurrentTaskSnooze()">
-                <i data-lucide="trash-2" style="width:13px;height:13px;"></i> Remove Reminder
-            </button>
-        </div>
-    </div>
 
     <script>
         
@@ -4601,57 +4605,10 @@
 
             popover.setAttribute('data-active-id', String(targetId));
 
-            // Determine trigger button for positioning
-            let triggerEl = null;
-            if (event && event.currentTarget && typeof event.currentTarget.getBoundingClientRect === 'function') {
-                triggerEl = event.currentTarget;
-            } else if (event && event.target && event.target.closest) {
-                triggerEl = event.target.closest('#btnSnoozeReminder') || event.target.closest('.card-action-btn') || event.target.closest('.bulk-action-btn') || event.target.closest('button');
-            }
-            if (!triggerEl) {
-                triggerEl = document.getElementById('btnSnoozeReminder');
-            }
-
-            if (triggerEl && typeof triggerEl.getBoundingClientRect === 'function') {
-                const rect = triggerEl.getBoundingClientRect();
-                console.log('[REMINDER DEBUG] Trigger element found:', triggerEl, 'BoundingRect:', rect);
-                if (rect.width > 0 && rect.height > 0) {
-                    const popoverWidth = 300;
-                    let top = rect.bottom + 8;
-
-                    // If trigger is on right side of viewport (like the header button), align to right of trigger
-                    if (rect.left > window.innerWidth / 2) {
-                        let right = window.innerWidth - rect.right;
-                        if (right < 10) right = 10;
-                        popover.style.right = right + 'px';
-                        popover.style.left = 'auto';
-                    } else {
-                        // Trigger on left side of viewport (like on task card)
-                        let left = rect.left;
-                        if (left + popoverWidth > window.innerWidth - 10) {
-                            left = window.innerWidth - popoverWidth - 10;
-                        }
-                        if (left < 10) left = 10;
-                        popover.style.left = left + 'px';
-                        popover.style.right = 'auto';
-                    }
-
-                    // Adjust top to stay inside window bounds
-                    if (top + 400 > window.innerHeight) {
-                        top = Math.max(10, rect.top - 410);
-                    }
-                    popover.style.top = top + 'px';
-                } else {
-                    popover.style.top = '70px';
-                    popover.style.right = '24px';
-                    popover.style.left = 'auto';
-                }
-            } else {
-                console.log('[REMINDER DEBUG] No bounding rect available, using top-right default positioning.');
-                popover.style.top = '70px';
-                popover.style.right = '24px';
-                popover.style.left = 'auto';
-            }
+            // Reset inline styles so CSS absolute anchoring directly underneath the button takes effect
+            popover.style.top = '';
+            popover.style.left = '';
+            popover.style.right = '';
             
             // Set default custom date to tomorrow 9am
             try {
