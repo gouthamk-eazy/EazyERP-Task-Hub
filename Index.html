@@ -3149,6 +3149,13 @@
             priorities: []
         };
 
+        const SNOOZE_STORAGE_KEY = 'bitrix_snooze_map';
+        let snoozeMap = {};
+        try {
+            const _raw = localStorage.getItem(SNOOZE_STORAGE_KEY);
+            if (_raw) snoozeMap = JSON.parse(_raw);
+        } catch(e) { snoozeMap = {}; }
+
         // --- DOM Elements ---
         const taskListEl = document.getElementById('taskList');
         const emptyStateEl = document.getElementById('emptyState');
@@ -5241,8 +5248,55 @@
             }
         }
 
+        // --- Form Dropdown Population ---
+        function populateDropdownMenus() {
+            function buildItems(containerId, items, valueFn, labelFn) {
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                container.innerHTML = '';
+                (items || []).forEach(function(item) {
+                    const div = document.createElement('div');
+                    div.className = 'dropdown-item';
+                    div.dataset.value = valueFn(item);
+                    div.innerHTML = labelFn(item);
+                    container.appendChild(div);
+                });
+            }
+
+            // Customers
+            buildItems('clientDropList', dropdownData.customers,
+                function(c) { return c.shortCode || c.name || c; },
+                function(c) { return (c.name || c.shortCode || c) + (c.shortCode ? ' <span style="color:var(--text-muted);font-size:11px">(' + c.shortCode + ')</span>' : ''); }
+            );
+
+            // Platforms
+            buildItems('platformDropList', dropdownData.platforms,
+                function(p) { return p.value || p; },
+                function(p) { return p.label || p.value || p; }
+            );
+
+            // Task Types
+            buildItems('taskTypeDropList', dropdownData.taskTypes,
+                function(p) { return p.value || p; },
+                function(p) { return p.label || p.value || p; }
+            );
+
+            // Priorities
+            buildItems('priorityDropList', dropdownData.priorities,
+                function(p) { return p.value || p; },
+                function(p) { return p.label || p.value || p; }
+            );
+
+            // Teammates (contact person field)
+            buildItems('contactDropList', dropdownData.teammates,
+                function(t) { return t.name || t; },
+                function(t) { return t.name || t; }
+            );
+        }
+
         // --- Form & Dropdown Logic ---
         function setupDropdowns() {
+
             const groups = document.querySelectorAll('.floating-label-group');
             
             // Remove previous event listeners by cloning
