@@ -4553,12 +4553,13 @@
         let activeSnoozeTargetId = null;
 
         function toggleSnoozeMenu(event, specificTaskId) {
+            console.log('[REMINDER DEBUG] toggleSnoozeMenu triggered with specificTaskId:', specificTaskId, 'selectedTaskId:', selectedTaskId);
             if (event) {
                 if (typeof event.stopPropagation === 'function') event.stopPropagation();
                 if (typeof event.preventDefault === 'function') event.preventDefault();
             }
             window._justOpenedSnooze = true;
-            setTimeout(function() { window._justOpenedSnooze = false; }, 150);
+            setTimeout(function() { window._justOpenedSnooze = false; }, 200);
             
             let targetId = specificTaskId || selectedTaskId;
             if (!targetId && visibleTasks.length > 0) {
@@ -4570,6 +4571,7 @@
                 selectTask(targetId);
             }
             if (!targetId) {
+                console.warn('[REMINDER DEBUG] No task available to snooze.');
                 showToast('Notice', 'Please select a task first to set a reminder.', true);
                 return;
             }
@@ -4577,11 +4579,13 @@
 
             const popover = document.getElementById('snoozePopover');
             if (!popover) {
-                console.error('snoozePopover element not found in DOM!');
+                console.error('[REMINDER DEBUG] FATAL: #snoozePopover element not found in DOM!');
+                alert('Debug Error: #snoozePopover element not found in DOM!');
                 return;
             }
 
             if (!popover.classList.contains('hidden') && popover.getAttribute('data-active-id') === String(targetId)) {
+                console.log('[REMINDER DEBUG] Toggling snooze menu closed.');
                 popover.classList.add('hidden');
                 popover.removeAttribute('data-active-id');
                 return;
@@ -4602,6 +4606,7 @@
 
             if (triggerEl && typeof triggerEl.getBoundingClientRect === 'function') {
                 const rect = triggerEl.getBoundingClientRect();
+                console.log('[REMINDER DEBUG] Trigger element found:', triggerEl, 'BoundingRect:', rect);
                 if (rect.width > 0 && rect.height > 0) {
                     const popoverWidth = 295;
                     let top = rect.bottom + 8;
@@ -4625,6 +4630,7 @@
                     popover.style.left = 'auto';
                 }
             } else {
+                console.log('[REMINDER DEBUG] No bounding rect available, using top-right default positioning.');
                 popover.style.top = '70px';
                 popover.style.right = '24px';
                 popover.style.left = 'auto';
@@ -4652,6 +4658,12 @@
             }
 
             popover.classList.remove('hidden');
+            console.log('[REMINDER DEBUG] Popover classList.remove("hidden") executed! Styles:', {
+                top: popover.style.top,
+                left: popover.style.left,
+                right: popover.style.right,
+                zIndex: popover.style.zIndex || window.getComputedStyle(popover).zIndex
+            });
             replaceIcons();
 
             // Request permission asynchronously without halting UI
@@ -4663,6 +4675,7 @@
             if (popover) {
                 popover.classList.add('hidden');
                 popover.removeAttribute('data-active-id');
+                console.log('[REMINDER DEBUG] Popover closed via closeSnoozeMenu().');
             }
         }
 
@@ -4671,12 +4684,41 @@
             const popover = document.getElementById('snoozePopover');
             if (popover && !popover.classList.contains('hidden')) {
                 if (popover.contains(e.target)) return;
-                const trigger = e.target.closest ? (e.target.closest('#btnSnoozeReminder') || e.target.closest('.card-action-btn') || e.target.closest('.bulk-action-btn')) : null;
-                if (trigger) return;
+                const trigger = e.target.closest ? (e.target.closest('#btnSnoozeReminder') || e.target.closest('.card-action-btn') || e.target.closest('.bulk-action-btn') || e.target.closest('button')) : null;
+                if (trigger && (trigger.id === 'btnSnoozeReminder' || trigger.classList.contains('card-action-btn') || trigger.classList.contains('bulk-action-btn'))) return;
+                console.log('[REMINDER DEBUG] Popover closed by outside click on element:', e.target);
                 popover.classList.add('hidden');
                 popover.removeAttribute('data-active-id');
             }
         });
+
+        // Global Diagnostic Function
+        window.debugReminder = function(forcedTaskId) {
+            console.log('=== [REMINDER DIAGNOSTIC CHECK] ===');
+            const popover = document.getElementById('snoozePopover');
+            console.log('1. Popover Element:', popover);
+            console.log('2. Popover Classes:', popover ? popover.className : 'NOT FOUND');
+            console.log('3. Selected Task ID:', selectedTaskId);
+            console.log('4. Visible Tasks Count:', visibleTasks ? visibleTasks.length : 0);
+            console.log('5. Total Tasks Count:', tasks ? tasks.length : 0);
+            console.log('6. Current SnoozeMap:', typeof snoozeMap !== 'undefined' ? snoozeMap : 'undefined');
+            
+            let tid = forcedTaskId || selectedTaskId || (visibleTasks[0] ? visibleTasks[0].id : null);
+            if (!tid && tasks[0]) tid = tasks[0].id;
+            console.log('7. Triggering toggleSnoozeMenu with ID:', tid);
+            
+            if (popover) {
+                popover.classList.remove('hidden');
+                popover.style.top = '80px';
+                popover.style.right = '30px';
+                popover.style.left = 'auto';
+                popover.style.zIndex = '999999';
+                showToast('Debug Diagnostic', 'Popover opened for Task #' + tid);
+            } else {
+                alert('DEBUG ERROR: Popover element not found in DOM!');
+            }
+            return { popover: popover, activeTask: tid };
+        };
 
         function applySnoozePreset(preset) {
             const target = new Date();
