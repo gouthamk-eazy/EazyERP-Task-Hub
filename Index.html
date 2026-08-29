@@ -3442,8 +3442,12 @@
             // 3. Point tasks array to selected tab dataset
             tasks = allTasksByTab[currentTab] || [];
 
-            // 4. Update action buttons for active tab
+            // 4. Update action buttons and rebuild filters for active tab
             updateActionBarForTab();
+            selectedTeammatesSet.clear();
+            selectedStatusesSet.clear();
+            setupTeamFilterDropdown();
+            setupStatusFilterDropdown();
 
             // 5. Update list using existing shared filter & search query
             updateList();
@@ -3933,8 +3937,140 @@
             showToast('Profile Switched', 'Active view set to ' + name + ' (' + role + ').');
         }
         
-                let selectedStatusFilter = 'ALL';
+        // ==========================================
+        // MULTI-SELECT STATE & ENGINES
+        // ==========================================
+        let selectedTeammatesSet = new Set();
+        let selectedStatusesSet = new Set();
 
+        function setupTeamFilterDropdown() {
+            const menu = document.getElementById('teamFilterMenu');
+            const btn = document.getElementById('teamFilterBtn');
+            const label = document.getElementById('selectedTeamLabel');
+            const box = document.getElementById('teamFilterBox');
+            if (!menu || !btn || !box) return;
+
+            box.classList.remove('hidden');
+
+            const currentTabTasks = tasks || [];
+            const memberMap = {}; // name -> count
+
+            function addMemberCount(name) {
+                if (!name || name === '-' || String(name).trim() === '' || name === 'ALL COMPANY') return;
+                const clean = String(name).trim();
+                memberMap[clean] = (memberMap[clean] || 0) + 1;
+            }
+
+            currentTabTasks.forEach(function(t) {
+                if (t.owner && t.owner !== '-') addMemberCount(t.owner);
+                if (t.assignee && t.assignee !== '-' && t.assignee !== t.owner) addMemberCount(t.assignee);
+                if (t.contactPerson && t.contactPerson !== '-') {
+                    String(t.contactPerson).split(',').forEach(function(cp) {
+                        const cleanCp = cp.trim();
+                        if (cleanCp !== t.owner && cleanCp !== t.assignee) addMemberCount(cleanCp);
+                    });
+                }
+            });
+
+            const activeMembers = Object.keys(memberMap).sort(function(a, b) {
+                return a.localeCompare(b);
+            });
+
+            // Clean up selections that aren't in active members
+            selectedTeammatesSet.forEach(function(m) {
+                if (activeMembers.indexOf(m) === -1) selectedTeammatesSet.delete(m);
+            });
+
+            const isAll = selectedTeammatesSet.size === 0 || selectedTeammatesSet.size === activeMembers.length;
+
+            let html = '<div class="team-filter-search"><input type="text" placeholder="Search team member..." oninput="filterDropdownList(this, \'teamFilterListContent\')" onclick="event.stopPropagation()"></div>';
+            html += '<div class="team-filter-list" id="teamFilterListContent">';
+            
+            // All Members checkbox item
+            html += '<div class="team-filter-item ' + (isAll ? 'active' : '') + '" onclick="toggleAllTeamMembers(event)">' +
+                        '<input type="checkbox" class="team-filter-checkbox" ' + (isAll ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleAllTeamMembers(event);">' +
+                        '<span class="team-filter-item-label"><strong>👥 All Team Members</strong></span>' +
+                        '<span class="team-filter-count-badge">' + currentTabTasks.length + '</span>' +
+                    '</div>';
+
+            activeMembers.forEach(function(name) {
+                const count = memberMap[name];
+                const checked = !isAll && selectedTeammatesSet.has(name);
+                html += '<div class="team-filter-item ' + (checked ? 'active' : '') + '" onclick="toggleTeamMember(event, \'' + name.replace(/'/g, "\\'") + '\')">' +
+                            '<input type="checkbox" class="team-filter-checkbox" ' + (checked ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleTeamMember(event, \'' + name.replace(/'/g, "\\'") + '\');">' +
+                            '<span class="team-filter-item-label">' + name + '</span>' +
+                            '<span class="team-filter-count-badge">' + count + '</span>' +
+                        '</div>';
+            });
+            html += '</div>';
+
+            html += '<div class="team-filter-footer">' +
+                        '<button onclick="clearTeamFilters(event)">Reset</button>' +
+                        '<button onclick="closeTeamMenu(event)">Done</button>' +
+                    '</div>';
+
+            menu.innerHTML = html;
+            updateTeamFilterButtonLabel();
+
+            btn.onclick = function(e) {
+                e.stopPropagation();
+                const sm = document.getElementById('statusFilterMenu');
+                if (sm) sm.classList.add('hidden');
+                menu.classList.toggle('hidden');
+            };
+        }
+
+        function updateTeamFilterButtonLabel() {
+            const btn = document.getElementById('teamFilterBtn');
+            const label = document.getElementById('selectedTeamLabel');
+            if (!label || !btn) return;
+
+            if (selectedTeammatesSet.size === 0) {
+                label.textContent = 'All Team';
+                btn.classList.remove('has-filter');
+            } else if (selectedTeammatesSet.size === 1) {
+                label.textContent = Array.from(selectedTeammatesSet)[0];
+                btn.classList.add('has-filter');
+            } else {
+                label.textContent = 'Team (' + selectedTeammatesSet.size + ')';
+                btn.classList.add('has-filter');
+            }
+        }
+
+        function toggleAllTeamMembers(e) {
+            if (e) e.stopPropagation();
+            selectedTeammatesSet.clear();
+            setupTeamFilterDropdown();
+            updateList();
+        }
+
+        function toggleTeamMember(e, name) {
+            if (e) e.stopPropagation();
+            if (selectedTeammatesSet.has(name)) {
+                selectedTeammatesSet.delete(name);
+            } else {
+                selectedTeammatesSet.add(name);
+            }
+            setupTeamFilterDropdown();
+            updateList();
+        }
+
+        function clearTeamFilters(e) {
+            if (e) e.stopPropagation();
+            selectedTeammatesSet.clear();
+            setupTeamFilterDropdown();
+            updateList();
+        }
+
+        function closeTeamMenu(e) {
+            if (e) e.stopPropagation();
+            const menu = document.getElementById('teamFilterMenu');
+            if (menu) menu.classList.add('hidden');
+        }
+
+        // ==========================================
+        // STATUS MULTI-SELECT FILTER
+        // ==========================================
         function setupStatusFilterDropdown() {
             const menu = document.getElementById('statusFilterMenu');
             const btn = document.getElementById('statusFilterBtn');
@@ -3952,141 +4088,113 @@
                 statusMap[st] = (statusMap[st] || 0) + 1;
             });
 
-            const sortedStatuses = Object.keys(statusMap).sort(function(a, b) {
+            const activeStatuses = Object.keys(statusMap).sort(function(a, b) {
                 return a.localeCompare(b);
             });
 
-            let html = '<div class="team-filter-item ' + (selectedStatusFilter === 'ALL' ? 'active' : '') + '" data-status="ALL">' +
-                           '<span>⚡ All Statuses</span>' +
-                           '<span style="background:var(--brand-bg); color:var(--brand); font-weight:700; font-size:10.5px; padding:2px 8px; border-radius:12px; margin-left:auto;">' + currentTabTasks.length + '</span>' +
-                       '</div>';
-
-            sortedStatuses.forEach(function(st) {
-                const count = statusMap[st];
-                const isSelected = selectedStatusFilter === st;
-                html += '<div class="team-filter-item ' + (isSelected ? 'active' : '') + '" data-status="' + st.replace(/"/g, '&quot;') + '">' +
-                            '<span>' + st + '</span>' +
-                            '<span style="background:var(--brand-bg); color:var(--brand); font-weight:700; font-size:10.5px; padding:2px 8px; border-radius:12px; margin-left:auto;">' + count + '</span>' +
-                        '</div>';
+            selectedStatusesSet.forEach(function(s) {
+                if (activeStatuses.indexOf(s) === -1) selectedStatusesSet.delete(s);
             });
 
+            const isAll = selectedStatusesSet.size === 0 || selectedStatusesSet.size === activeStatuses.length;
+
+            let html = '<div class="team-filter-search"><input type="text" placeholder="Search status..." oninput="filterDropdownList(this, \'statusFilterListContent\')" onclick="event.stopPropagation()"></div>';
+            html += '<div class="team-filter-list" id="statusFilterListContent">';
+            
+            // All Statuses row
+            html += '<div class="team-filter-item ' + (isAll ? 'active' : '') + '" onclick="toggleAllStatuses(event)">' +
+                        '<input type="checkbox" class="team-filter-checkbox" ' + (isAll ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleAllStatuses(event);">' +
+                        '<span class="team-filter-item-label"><strong>⚡ All Statuses</strong></span>' +
+                        '<span class="team-filter-count-badge">' + currentTabTasks.length + '</span>' +
+                    '</div>';
+
+            activeStatuses.forEach(function(st) {
+                const count = statusMap[st];
+                const checked = !isAll && selectedStatusesSet.has(st);
+                html += '<div class="team-filter-item ' + (checked ? 'active' : '') + '" onclick="toggleStatusItem(event, \'' + st.replace(/'/g, "\\'") + '\')">' +
+                            '<input type="checkbox" class="team-filter-checkbox" ' + (checked ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleStatusItem(event, \'' + st.replace(/'/g, "\\'") + '\');">' +
+                            '<span class="team-filter-item-label">' + st + '</span>' +
+                            '<span class="team-filter-count-badge">' + count + '</span>' +
+                        '</div>';
+            });
+            html += '</div>';
+
+            html += '<div class="team-filter-footer">' +
+                        '<button onclick="clearStatusFilters(event)">Reset</button>' +
+                        '<button onclick="closeStatusMenu(event)">Done</button>' +
+                    '</div>';
+
             menu.innerHTML = html;
+            updateStatusFilterButtonLabel();
 
             btn.onclick = function(e) {
                 e.stopPropagation();
-                // Close team menu if open
                 const tm = document.getElementById('teamFilterMenu');
                 if (tm) tm.classList.add('hidden');
                 menu.classList.toggle('hidden');
             };
+        }
 
-            document.addEventListener('click', function(e) {
-                if (!e.target.closest('#statusFilterBox')) {
-                    menu.classList.add('hidden');
-                }
-            });
+        function updateStatusFilterButtonLabel() {
+            const btn = document.getElementById('statusFilterBtn');
+            const label = document.getElementById('selectedStatusLabel');
+            if (!label || !btn) return;
 
-            menu.querySelectorAll('.team-filter-item').forEach(function(item) {
-                item.onclick = function() {
-                    menu.querySelectorAll('.team-filter-item').forEach(function(i) { i.classList.remove('active'); });
-                    item.classList.add('active');
-                    selectedStatusFilter = item.getAttribute('data-status');
-                    if (label) {
-                        label.textContent = selectedStatusFilter === 'ALL' ? 'All Status' : selectedStatusFilter;
-                    }
-                    menu.classList.add('hidden');
-                    updateList();
-                };
+            if (selectedStatusesSet.size === 0) {
+                label.textContent = 'All Status';
+                btn.classList.remove('has-filter');
+            } else if (selectedStatusesSet.size === 1) {
+                label.textContent = Array.from(selectedStatusesSet)[0];
+                btn.classList.add('has-filter');
+            } else {
+                label.textContent = 'Status (' + selectedStatusesSet.size + ')';
+                btn.classList.add('has-filter');
+            }
+        }
+
+        function toggleAllStatuses(e) {
+            if (e) e.stopPropagation();
+            selectedStatusesSet.clear();
+            setupStatusFilterDropdown();
+            updateList();
+        }
+
+        function toggleStatusItem(e, st) {
+            if (e) e.stopPropagation();
+            if (selectedStatusesSet.has(st)) {
+                selectedStatusesSet.delete(st);
+            } else {
+                selectedStatusesSet.add(st);
+            }
+            setupStatusFilterDropdown();
+            updateList();
+        }
+
+        function clearStatusFilters(e) {
+            if (e) e.stopPropagation();
+            selectedStatusesSet.clear();
+            setupStatusFilterDropdown();
+            updateList();
+        }
+
+        function closeStatusMenu(e) {
+            if (e) e.stopPropagation();
+            const menu = document.getElementById('statusFilterMenu');
+            if (menu) menu.classList.add('hidden');
+        }
+
+        function filterDropdownList(inputEl, containerId) {
+            const query = (inputEl.value || '').toLowerCase().trim();
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const items = container.querySelectorAll('.team-filter-item');
+            items.forEach(function(item) {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.indexOf(query) >= 0 ? 'flex' : 'none';
             });
         }
 
-        function setupTeamFilterDropdown() {
-            const menu = document.getElementById('teamFilterMenu');
-            const btn = document.getElementById('teamFilterBtn');
-            const label = document.getElementById('selectedTeamLabel');
-            const box = document.getElementById('teamFilterBox');
-            if (!menu || !btn || !box) return;
-
-            box.classList.remove('hidden');
-
-            // Gather all distinct teammates across dropdowns, customers, and active task data
-            const memberMap = {}; // name -> { count: 0, roles: Set() }
-
-            function addMember(name, role) {
-                if (!name || name === '-' || String(name).trim() === '' || name === 'ALL COMPANY') return;
-                const cleanName = String(name).trim();
-                if (!memberMap[cleanName]) {
-                    memberMap[cleanName] = { count: 0, roles: [] };
-                }
-                if (role && memberMap[cleanName].roles.indexOf(role) === -1) {
-                    memberMap[cleanName].roles.push(role);
-                }
-            }
-
-            // 1. From Teammates sheet
-            (dropdownData.teammates || []).forEach(function(tm) {
-                addMember(tm.name, tm.role || 'Member');
-            });
-
-            // 2. From Customer Master (APM / CSE / Task Owner)
-            (dropdownData.customers || []).forEach(function(c) {
-                addMember(c.apm, 'APM');
-                addMember(c.cse, 'CSE');
-                addMember(c.taskOwner, 'Task Owner');
-            });
-
-            // 3. From loaded tasks across all tabs (count active tasks)
-            const currentTabTasks = tasks || [];
-            currentTabTasks.forEach(function(t) {
-                if (t.owner && t.owner !== '-') {
-                    addMember(t.owner, 'Owner');
-                    if (memberMap[t.owner]) memberMap[t.owner].count++;
-                }
-                if (t.assignee && t.assignee !== '-' && t.assignee !== t.owner) {
-                    addMember(t.assignee, 'Assignee');
-                    if (memberMap[t.assignee]) memberMap[t.assignee].count++;
-                }
-                if (t.contactPerson && t.contactPerson !== '-') {
-                    String(t.contactPerson).split(',').forEach(function(cp) {
-                        const cleanCp = cp.trim();
-                        addMember(cleanCp, 'Contact');
-                        if (cleanCp !== t.owner && cleanCp !== t.assignee && memberMap[cleanCp]) {
-                            memberMap[cleanCp].count++;
-                        }
-                    });
-                }
-            });
-
-            // Filter to ONLY team members who have at least 1 linked task
-            const activeLinkedMembers = Object.keys(memberMap).filter(function(name) {
-                return memberMap[name] && memberMap[name].count > 0;
-            }).sort(function(a, b) {
-                return a.localeCompare(b);
-            });
-
-            let html = '<div class="team-filter-item ' + (selectedTeammateFilter === 'ALL' ? 'active' : '') + '" data-name="ALL">' +
-                           '<span>👥 All Team Members</span>' +
-                           '<span style="background:var(--brand-bg); color:var(--brand); font-weight:700; font-size:10.5px; padding:2px 8px; border-radius:12px; margin-left:auto;">' + currentTabTasks.length + '</span>' +
-                       '</div>';
-
-            activeLinkedMembers.forEach(function(name) {
-                const info = memberMap[name];
-                const countBadge = '<span style="background:var(--brand-bg); color:var(--brand); font-weight:700; font-size:10.5px; padding:2px 8px; border-radius:12px; margin-left:auto;">' + info.count + '</span>';
-                const isSelected = selectedTeammateFilter === name;
-                html += '<div class="team-filter-item ' + (isSelected ? 'active' : '') + '" data-name="' + name.replace(/"/g, '&quot;') + '">' + 
-                            '<span>' + name + '</span>' + 
-                            countBadge + 
-                        '</div>';
-            });
-
-            menu.innerHTML = html;
-
-            btn.onclick = function(e) {
-                e.stopPropagation();
-                menu.classList.toggle('hidden');
-            };
-
-                    document.addEventListener('click', function(e) {
+        document.addEventListener('click', function(e) {
             if (!e.target.closest('#teamFilterBox')) {
                 const tm = document.getElementById('teamFilterMenu');
                 if (tm) tm.classList.add('hidden');
@@ -4096,20 +4204,6 @@
                 if (sm) sm.classList.add('hidden');
             }
         });
-
-            menu.querySelectorAll('.team-filter-item').forEach(function(item) {
-                item.onclick = function() {
-                    menu.querySelectorAll('.team-filter-item').forEach(function(i) { i.classList.remove('active'); });
-                    item.classList.add('active');
-                    selectedTeammateFilter = item.getAttribute('data-name');
-                    if (label) {
-                        label.textContent = selectedTeammateFilter === 'ALL' ? 'All Team' : selectedTeammateFilter;
-                    }
-                    menu.classList.add('hidden');
-                    updateList();
-                };
-            });
-        }
 
         function onInitialDataError(err) {
             loadingOverlay.style.display = 'none';
@@ -4548,25 +4642,23 @@
                     }
                 }
 
-                // 2. Teammate scoping filter dropdown (applied on top)
-                if (selectedTeammateFilter && selectedTeammateFilter !== 'ALL') {
-                    const filterNameLower = selectedTeammateFilter.toLowerCase();
-                    const cp = (t.contactPerson || '').toLowerCase();
-                    const ow = (t.owner || '').toLowerCase();
-                    const as = (t.assignee || '').toLowerCase();
-                    const ti = (t.title || '').toLowerCase();
-                    const re = (t.gouthamRemarks || '').toLowerCase();
-                    const tr = (t.techRemarks || '').toLowerCase();
-                    const cl = (t.clientName || '').toLowerCase();
-                    const isMatch = cp.indexOf(filterNameLower) >= 0 || ow.indexOf(filterNameLower) >= 0 || as.indexOf(filterNameLower) >= 0 || ti.indexOf(filterNameLower) >= 0 || re.indexOf(filterNameLower) >= 0 || tr.indexOf(filterNameLower) >= 0 || cl.indexOf(filterNameLower) >= 0;
-                    if (!isMatch) return false;
+                // 2. Teammate Multi-Select Filter
+                if (selectedTeammatesSet && selectedTeammatesSet.size > 0) {
+                    const matchesOwner = t.owner && selectedTeammatesSet.has(t.owner);
+                    const matchesAssignee = t.assignee && selectedTeammatesSet.has(t.assignee);
+                    let matchesContact = false;
+                    if (t.contactPerson && t.contactPerson !== '-') {
+                        matchesContact = String(t.contactPerson).split(',').some(function(cp) {
+                            return selectedTeammatesSet.has(cp.trim());
+                        });
+                    }
+                    if (!matchesOwner && !matchesAssignee && !matchesContact) return false;
                 }
 
-                                // Status Filter
-                if (selectedStatusFilter && selectedStatusFilter !== 'ALL') {
-                    const stLower = selectedStatusFilter.toLowerCase();
-                    const taskSt = String(t.stage || t.currentStatus || t.reviewStatus || (currentTab === 'new' ? 'New Task' : 'Active')).toLowerCase();
-                    if (taskSt.indexOf(stLower) === -1) return false;
+                // 3. Status Multi-Select Filter
+                if (selectedStatusesSet && selectedStatusesSet.size > 0) {
+                    const taskSt = String(t.stage || t.currentStatus || t.reviewStatus || (currentTab === 'new' ? 'New Task' : 'Active')).trim();
+                    if (!selectedStatusesSet.has(taskSt)) return false;
                 }
 
                 // 3. Fuzzy search filter
