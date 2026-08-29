@@ -2075,6 +2075,144 @@
             }
         }
 
+        
+        /* Snooze / Reminder Popover Styles */
+        .snooze-popover {
+            position: fixed;
+            z-index: 1050;
+            width: 290px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-xl);
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            animation: fadeIn 0.15s ease-out;
+            backdrop-filter: blur(16px);
+        }
+        .snooze-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-light);
+            padding-bottom: 8px;
+        }
+        .snooze-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .snooze-close {
+            background: transparent;
+            border: none;
+            font-size: 18px;
+            color: var(--text-muted);
+            cursor: pointer;
+            line-height: 1;
+        }
+        .snooze-options {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .snooze-option-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: var(--radius-md);
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            cursor: pointer;
+            text-align: left;
+            transition: all var(--transition-fast);
+        }
+        .snooze-option-btn:hover {
+            background: var(--brand-bg);
+            border-color: var(--brand-light);
+            transform: translateX(2px);
+        }
+        .snooze-opt-icon {
+            font-size: 16px;
+        }
+        .snooze-opt-text strong {
+            display: block;
+            font-size: 12.5px;
+            color: var(--text-primary);
+        }
+        .snooze-opt-text small {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .snooze-custom-divider {
+            text-align: center;
+            position: relative;
+            margin: 4px 0;
+        }
+        .snooze-custom-divider span {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            padding: 0 6px;
+        }
+        .snooze-custom-form {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .snooze-datetime-input {
+            width: 100%;
+            height: 36px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-strong);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 12px;
+            padding: 0 8px;
+            font-family: inherit;
+        }
+        .snooze-clear-area {
+            border-top: 1px solid var(--border-light);
+            padding-top: 6px;
+        }
+        .snooze-clear-btn {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--danger);
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 6px;
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+        }
+        .snooze-clear-btn:hover {
+            background: var(--danger-bg);
+        }
+        .snooze-badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: var(--radius-sm);
+            background: rgba(245, 158, 11, 0.12);
+            color: #d97706;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
         /* Keyframes */
         @keyframes fadeIn {
             from { opacity: 0; }
@@ -2244,6 +2382,9 @@
                     <div class="filter-pill" data-filter="today">
                         Today <span class="filter-count" id="countToday">0</span>
                     </div>
+                                        <div class="filter-pill" data-filter="snoozed" id="filterPillSnoozed">
+                        ⏰ Snoozed <span class="filter-count" id="countSnoozed">0</span>
+                    </div>
                     <div class="filter-pill" data-filter="overdue">
                         Overdue <span class="filter-count" id="countOverdue">0</span>
                     </div>
@@ -2293,6 +2434,10 @@
                                 <h2 class="detail-title" id="dtTitle">Task Title</h2>
                             </div>
                             <div class="nav-controls" style="display: flex; align-items: center; gap: 8px;">
+                                                                <button class="btn-header-action" id="btnSnoozeReminder" title="Snooze / Set Reminder" onclick="toggleSnoozeMenu(event)">
+                                    <i data-lucide="clock"></i>
+                                    <span id="snoozeBtnText">Reminder</span>
+                                </button>
                                 <button class="btn-header-action" id="btnToggleStar" title="Toggle Star / Important">
                                     <i data-lucide="star"></i>
                                     <span id="starBtnText">Star</span>
@@ -3753,6 +3898,238 @@
             priorityMenu.innerHTML = renderDropdownMenuHtml(priorityItems, 'Search priority...');
         }
 
+        
+        // --- Web Notification & Web Audio Chime Reminder Engine ---
+        const SNOOZE_STORAGE_KEY = 'bitrix_task_snooze_reminders_v1';
+        let snoozeMap = {};
+        try {
+            snoozeMap = JSON.parse(localStorage.getItem(SNOOZE_STORAGE_KEY) || '{}');
+        } catch(e) {
+            snoozeMap = {};
+        }
+
+        function playReminderChime() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                
+                const now = ctx.currentTime;
+                // Note 1: E5 (659.25Hz)
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(659.25, now);
+                gain1.gain.setValueAtTime(0.3, now);
+                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                osc1.connect(gain1);
+                gain1.connect(ctx.destination);
+                osc1.start(now);
+                osc1.stop(now + 0.6);
+
+                // Note 2: B5 (987.77Hz)
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(987.77, now + 0.15);
+                gain2.gain.setValueAtTime(0.35, now + 0.15);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.start(now + 0.15);
+                osc2.stop(now + 0.9);
+            } catch(e) {
+                console.warn('Audio chime note:', e);
+            }
+        }
+
+        function requestNotificationPermission() {
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        }
+
+        function triggerTaskNotification(task, snoozeData) {
+            playReminderChime();
+            
+            const title = '🔔 Task Reminder: #' + task.bitrixId + ' ' + (task.clientName || '');
+            const body = task.title + ' (Deadline: ' + task.deadline + ')';
+
+            if ('Notification' in window && Notification.permission === 'granted') {
+                try {
+                    const notif = new Notification(title, {
+                        body: body,
+                        icon: 'https://cdn-icons-png.flaticon.com/512/3239/3239958.png',
+                        tag: 'task-' + task.bitrixId
+                    });
+                    notif.onclick = function() {
+                        window.focus();
+                        selectTask(task.id);
+                        notif.close();
+                    };
+                } catch(e) {
+                    console.warn('Notification error:', e);
+                }
+            }
+
+            showToast('⏰ Reminder Due', '#' + task.bitrixId + ': ' + task.title, false);
+        }
+
+        function checkDueReminders() {
+            const now = Date.now();
+            let changed = false;
+
+            Object.keys(snoozeMap).forEach(function(bid) {
+                const s = snoozeMap[bid];
+                if (s && s.time && !s.notified && now >= s.time) {
+                    s.notified = true;
+                    changed = true;
+                    
+                    // Find corresponding task in any loaded tab
+                    let task = null;
+                    Object.keys(allTasksByTab).forEach(function(tab) {
+                        const found = (allTasksByTab[tab] || []).find(function(t) { return String(t.bitrixId) === String(bid); });
+                        if (found) task = found;
+                    });
+
+                    if (task) {
+                        triggerTaskNotification(task, s);
+                    }
+                }
+            });
+
+            if (changed) {
+                try { localStorage.setItem(SNOOZE_STORAGE_KEY, JSON.stringify(snoozeMap)); } catch(e) {}
+                updateList();
+            }
+        }
+
+        // Check reminders every 20 seconds
+        setInterval(checkDueReminders, 20000);
+
+        function toggleSnoozeMenu(event) {
+            event.stopPropagation();
+            requestNotificationPermission();
+            const popover = document.getElementById('snoozePopover');
+            if (!popover) return;
+
+            if (!popover.classList.contains('hidden')) {
+                popover.classList.add('hidden');
+                return;
+            }
+
+            const btn = document.getElementById('btnSnoozeReminder');
+            const rect = btn.getBoundingClientRect();
+            popover.style.top = (rect.bottom + 8) + 'px';
+            popover.style.left = Math.max(10, Math.min(window.innerWidth - 300, rect.left - 100)) + 'px';
+            
+            // Set default custom date to tomorrow 9am
+            const tm = new Date();
+            tm.setDate(tm.getDate() + 1);
+            tm.setHours(9, 0, 0, 0);
+            const isoLocal = new Date(tm.getTime() - tm.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+            document.getElementById('snoozeCustomInput').value = isoLocal;
+
+            // Check if current task has snooze
+            const clearArea = document.getElementById('snoozeClearArea');
+            if (selectedTaskId) {
+                const task = tasks.find(function(t) { return t.id === selectedTaskId; });
+                if (task && snoozeMap[task.bitrixId]) {
+                    clearArea.classList.remove('hidden');
+                } else {
+                    clearArea.classList.add('hidden');
+                }
+            }
+
+            popover.classList.remove('hidden');
+        }
+
+        function closeSnoozeMenu() {
+            const popover = document.getElementById('snoozePopover');
+            if (popover) popover.classList.add('hidden');
+        }
+
+        document.addEventListener('click', function(e) {
+            const popover = document.getElementById('snoozePopover');
+            if (popover && !popover.classList.contains('hidden') && !popover.contains(e.target) && e.target.id !== 'btnSnoozeReminder') {
+                popover.classList.add('hidden');
+            }
+        });
+
+        function applySnoozePreset(preset) {
+            const target = new Date();
+            if (preset === 'today_evening') {
+                target.setHours(17, 0, 0, 0);
+                if (target.getTime() <= Date.now()) target.setTime(Date.now() + 2 * 3600 * 1000);
+            } else if (preset === 'tomorrow_morning') {
+                target.setDate(target.getDate() + 1);
+                target.setHours(9, 0, 0, 0);
+            } else if (preset === 'next_week') {
+                const day = target.getDay();
+                const diff = (8 - day) % 7 || 7;
+                target.setDate(target.getDate() + diff);
+                target.setHours(9, 0, 0, 0);
+            }
+
+            setTaskSnoozeTimestamp(target.getTime(), target.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
+        }
+
+        function applyCustomSnooze() {
+            const val = document.getElementById('snoozeCustomInput').value;
+            if (!val) {
+                showToast('Validation', 'Please select a reminder date and time.', true);
+                return;
+            }
+            const target = new Date(val);
+            if (isNaN(target.getTime())) {
+                showToast('Validation', 'Invalid date format.', true);
+                return;
+            }
+            setTaskSnoozeTimestamp(target.getTime(), target.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
+        }
+
+        function setTaskSnoozeTimestamp(timestampMs, label) {
+            if (!selectedTaskId) return;
+            const task = tasks.find(function(t) { return t.id === selectedTaskId; });
+            if (!task) return;
+
+            snoozeMap[task.bitrixId] = {
+                time: timestampMs,
+                label: label,
+                notified: false,
+                setAt: Date.now()
+            };
+
+            try { localStorage.setItem(SNOOZE_STORAGE_KEY, JSON.stringify(snoozeMap)); } catch(e) {}
+            
+            // Also sync as Next Follow Up Date in background to Google Sheet
+            const formattedDate = new Date(timestampMs).toISOString().split('T')[0];
+            callBackend('updateTask', {
+                sheetGidKey: getSheetKeyForCurrentTab(),
+                taskData: {
+                    'Bitrix ID': task.bitrixId,
+                    'Next Follow Up Date': formattedDate
+                }
+            }).catch(function(err) { console.warn('Follow-up date sync note:', err); });
+
+            closeSnoozeMenu();
+            showToast('Reminder Set', 'Reminder scheduled for ' + label);
+            updateList();
+        }
+
+        function clearCurrentTaskSnooze() {
+            if (!selectedTaskId) return;
+            const task = tasks.find(function(t) { return t.id === selectedTaskId; });
+            if (!task) return;
+
+            delete snoozeMap[task.bitrixId];
+            try { localStorage.setItem(SNOOZE_STORAGE_KEY, JSON.stringify(snoozeMap)); } catch(e) {}
+            
+            closeSnoozeMenu();
+            showToast('Reminder Cleared', 'Task reminder removed.');
+            updateList();
+        }
+
         // --- High Performance Fuzzy Lookup Algorithm ---
         function levenshteinDistance(s1, s2) {
             if (Math.abs(s1.length - s2.length) > 2) return 99;
@@ -3899,6 +4276,7 @@
                 if (activeFilter === 'overdue') return t.deadline === 'Overdue';
                 if (activeFilter === 'unread') return !isRead(t.bitrixId);
                 if (activeFilter === 'starred') return isStarred(t.bitrixId);
+                if (activeFilter === 'snoozed') return !!snoozeMap[t.bitrixId];
 
                 return true;
             });
@@ -3921,6 +4299,11 @@
             document.getElementById('countStarred').textContent = tasks.filter(function(t) { return isStarred(t.bitrixId); }).length;
             document.getElementById('countToday').textContent = tasks.filter(function(t) { return t.deadline === 'Today'; }).length;
             document.getElementById('countOverdue').textContent = tasks.filter(function(t) { return t.deadline === 'Overdue'; }).length;
+
+            const snoozedCount = tasks.filter(function(t) { return snoozeMap[t.bitrixId] && !snoozeMap[t.bitrixId].notified; }).length;
+            const snoozedBadge = document.getElementById('countSnoozed');
+            if (snoozedBadge) snoozedBadge.textContent = snoozedCount;
+
         }
 
         function renderList() {
@@ -3978,7 +4361,7 @@
                     '<div class="task-meta" style="margin-top: 6px;">' +
                         '<span class="bitrix-id">#' + task.bitrixId + '</span>' +
                         '<span style="color: var(--text-muted); font-size: 11px;">Created: ' + createdDisplay + '</span>' +
-                        '<span class="deadline-badge ' + task.deadlineStatus + '">' +
+                        snoozeBadgeHtml + '<span class="deadline-badge ' + task.deadlineStatus + '">' +
                             icon(iconName) + ' ' + task.deadline +
                         '</span>' +
                     '</div>';
@@ -4993,6 +5376,50 @@
         document.addEventListener('DOMContentLoaded', init);
 
     </script>
+
+
+    <!-- Snooze / Reminder Popover Menu -->
+    <div id="snoozePopover" class="snooze-popover hidden" onclick="event.stopPropagation()">
+        <div class="snooze-header">
+            <div class="snooze-title"><i data-lucide="bell" style="width:15px;height:15px;"></i> Snooze / Remind Me</div>
+            <button class="snooze-close" onclick="closeSnoozeMenu()">&times;</button>
+        </div>
+        <div class="snooze-options">
+            <button class="snooze-option-btn" onclick="applySnoozePreset('today_evening')">
+                <span class="snooze-opt-icon">🌆</span>
+                <div class="snooze-opt-text">
+                    <strong>Later Today</strong>
+                    <small>Today at 5:00 PM</small>
+                </div>
+            </button>
+            <button class="snooze-option-btn" onclick="applySnoozePreset('tomorrow_morning')">
+                <span class="snooze-opt-icon">🌅</span>
+                <div class="snooze-opt-text">
+                    <strong>Tomorrow Morning</strong>
+                    <small>Tomorrow at 9:00 AM</small>
+                </div>
+            </button>
+            <button class="snooze-option-btn" onclick="applySnoozePreset('next_week')">
+                <span class="snooze-opt-icon">📅</span>
+                <div class="snooze-opt-text">
+                    <strong>Next Week</strong>
+                    <small>Next Monday at 9:00 AM</small>
+                </div>
+            </button>
+        </div>
+        <div class="snooze-custom-divider"><span>OR PICK SPECIFIC DATE & TIME</span></div>
+        <div class="snooze-custom-form">
+            <input type="datetime-local" id="snoozeCustomInput" class="snooze-datetime-input">
+            <button class="btn btn-primary" style="height:36px;font-size:12.5px;width:100%;justify-content:center;" onclick="applyCustomSnooze()">
+                <i data-lucide="check"></i> Set Reminder
+            </button>
+        </div>
+        <div id="snoozeClearArea" class="snooze-clear-area hidden">
+            <button class="snooze-clear-btn" onclick="clearCurrentTaskSnooze()">
+                <i data-lucide="trash-2" style="width:13px;height:13px;"></i> Remove Reminder
+            </button>
+        </div>
+    </div>
 
 </body>
 </html>
