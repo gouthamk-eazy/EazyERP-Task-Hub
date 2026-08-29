@@ -721,6 +721,7 @@
             display: inline-block;
             vertical-align: middle;
             margin: 0;
+            pointer-events: none;
         }
         .team-filter-item-label {
             flex: 1;
@@ -3648,35 +3649,47 @@
             fetchInitialData();
         }
         
-                function mapBackendTaskToFrontend(bTask) {
-            const rawDl = bTask['Deadline Given'] || bTask['Deadline'] || '';
-            const rawContact = bTask['Contact Person'] || '';
-            const rawAssignee = bTask['Assignee'] || '';
-            const rawStatus = bTask['Current Status'] || bTask['Stage'] || bTask['Status'] || bTask['Review Status'] || '';
-            const bitrixIdStr = String(bTask['Bitrix ID'] || '').trim();
-            const rawProj = String(bTask['Project'] || '').trim();
-            const rawSpr = String(bTask['Sprint'] || '').trim();
-            const rawBack = String(bTask['Backlog'] || '').trim();
-            const rawPid = String(bTask['Parent ID'] || bTask['Parent Task ID'] || '').trim();
-            const rawCid = String(bTask['Chat ID'] || '').trim();
-            const rawRem = String(bTask["Goutham's Remarks"] || '').trim();
-            const rawFollow = String(bTask['Next Follow Up Date'] || '').trim();
-            const rawOwn = String(bTask['Task Owner'] || '').trim();
-            const rawClient = String(bTask['Client Name'] || '').trim();
-            const rawRevStatus = String(bTask['Review Status'] || '').trim();
+                        function mapBackendTaskToFrontend(bTask) {
+            const rawDl = bTask['Deadline Given'] || bTask['Deadline'] || bTask['deadline'] || '';
+            const rawContact = bTask['Contact Person'] || bTask['contact person'] || bTask['Contact'] || '';
+            const rawAssignee = bTask['Assignee'] || bTask['assignee'] || '';
+            const bitrixIdStr = String(bTask['Bitrix ID'] || bTask['bitrix id'] || bTask['ID'] || bTask['id'] || '').trim();
+            const rawProj = String(bTask['Project'] || bTask['project'] || '').trim();
+            const rawSpr = String(bTask['Sprint'] || bTask['sprint'] || '').trim();
+            const rawBack = String(bTask['Backlog'] || bTask['backlog'] || '').trim();
+            const rawPid = String(bTask['Parent ID'] || bTask['Parent Task ID'] || bTask['parent id'] || '').trim();
+            const rawCid = String(bTask['Chat ID'] || bTask['chat id'] || '').trim();
+            const rawRem = String(bTask["Goutham's Remarks"] || bTask["goutham's remarks"] || bTask["Goutham Remarks"] || '').trim();
+            const rawFollow = String(bTask['Next Follow Up Date'] || bTask['next follow up date'] || bTask['Follow Up'] || '').trim();
+            const rawOwn = String(bTask['Task Owner'] || bTask['task owner'] || bTask['Owner'] || bTask['owner'] || '').trim();
+            const rawClient = String(bTask['Client Name'] || bTask['client name'] || bTask['Client'] || '').trim();
+            const rawRevStatus = String(bTask['Review Status'] || bTask['review status'] || '').trim();
 
-            const normalizedStatus = String(rawStatus || '').trim() || (rawRevStatus || 'New');
+            // Universal status resolution: Check Current Status, Stage, Status, Review Status across all key variations
+            let rawStatus = '';
+            for (const k in bTask) {
+                const kClean = String(k).toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (kClean === 'currentstatus' || kClean === 'status' || kClean === 'stage' || kClean === 'taskstatus') {
+                    const val = String(bTask[k] || '').trim();
+                    if (val && val !== '-' && val !== 'null' && val !== 'undefined') {
+                        rawStatus = val;
+                        break;
+                    }
+                }
+            }
+
+            const normalizedStatus = rawStatus || rawRevStatus || (currentTab === 'new' ? 'New Task' : 'Active');
 
             return {
                 id: bitrixIdStr,
                 bitrixId: bitrixIdStr,
-                title: String(bTask['Task Title'] || 'Untitled Task'),
-                description: String(bTask['Description'] || ''),
+                title: String(bTask['Task Title'] || bTask['task title'] || bTask['Title'] || bTask['title'] || 'Untitled Task'),
+                description: String(bTask['Description'] || bTask['description'] || ''),
                 deadline: getDeadlineText(rawDl),
                 deadlineStatus: getDeadlineStatus(rawDl),
                 rawDeadline: rawDl,
-                createdDate: formatDate(bTask['Created Date']),
-                rawCreated: bTask['Created Date'],
+                createdDate: formatDate(bTask['Created Date'] || bTask['created date']),
+                rawCreated: bTask['Created Date'] || bTask['created date'],
                 owner: rawOwn || '-',
                 rawOwner: rawOwn,
                 currentOwner: rawOwn,
@@ -3698,13 +3711,13 @@
                 clientName: rawClient,
                 contactPerson: rawContact || '-',
                 rawContact: rawContact,
-                platform: String(bTask['Platform'] || ''),
-                taskType: String(bTask['Task Type'] || ''),
-                priority: String(bTask['Priority'] || ''),
+                platform: String(bTask['Platform'] || bTask['platform'] || ''),
+                taskType: String(bTask['Task Type'] || bTask['task type'] || ''),
+                priority: String(bTask['Priority'] || bTask['priority'] || ''),
                 gouthamRemarks: rawRem || '-',
                 rawRemarks: rawRem,
-                techRemarks: String(bTask['Tech Remarks'] || ''),
-                rawTechRemarks: String(bTask['Tech Remarks'] || ''),
+                techRemarks: String(bTask['Tech Remarks'] || bTask['tech remarks'] || ''),
+                rawTechRemarks: String(bTask['Tech Remarks'] || bTask['tech remarks'] || ''),
                 nextFollowUpDate: (rawFollow && rawFollow !== '-') ? formatDate(rawFollow) : '-',
                 rawFollowUp: rawFollow,
                 reviewStatus: rawRevStatus
@@ -3937,8 +3950,8 @@
             showToast('Profile Switched', 'Active view set to ' + name + ' (' + role + ').');
         }
         
-                // ==========================================
-        // SMOOTH MULTI-SELECT STATE & ENGINES
+                        // ==========================================
+        // FLAWLESS MULTI-SELECT STATE & ENGINES
         // ==========================================
         let selectedTeammatesSet = new Set(); // If empty => All active
         let selectedStatusesSet = new Set();  // If empty => All active
@@ -3966,7 +3979,9 @@
                 if (t.contactPerson && t.contactPerson !== '-') {
                     String(t.contactPerson).split(',').forEach(function(cp) {
                         const cleanCp = cp.trim();
-                        if (cleanCp !== t.owner && cleanCp !== t.assignee) addMemberCount(cleanCp);
+                        if (cleanCp && cleanCp !== '-' && cleanCp !== t.owner && cleanCp !== t.assignee) {
+                            addMemberCount(cleanCp);
+                        }
                     });
                 }
             });
@@ -3982,7 +3997,7 @@
             
             // All Members row
             html += '<div class="team-filter-item team-filter-all-item ' + (isAll ? 'active' : '') + '" onclick="toggleAllTeamMembers(event)">' +
-                        '<input type="checkbox" class="team-filter-checkbox team-filter-all-checkbox" ' + (isAll ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleAllTeamMembers(event);">' +
+                        '<input type="checkbox" class="team-filter-checkbox team-filter-all-checkbox" ' + (isAll ? 'checked' : '') + ' tabindex="-1">' +
                         '<span class="team-filter-item-label"><strong>👥 All Team Members</strong></span>' +
                         '<span class="team-filter-count-badge">' + currentTabTasks.length + '</span>' +
                     '</div>';
@@ -3991,7 +4006,7 @@
                 const count = memberMap[name];
                 const checked = isAll || selectedTeammatesSet.has(name);
                 html += '<div class="team-filter-item team-filter-member-item ' + (checked ? 'active' : '') + '" data-name="' + name.replace(/"/g, '&quot;') + '" onclick="toggleTeamMember(event, \'' + name.replace(/'/g, "\'") + '\')">' +
-                            '<input type="checkbox" class="team-filter-checkbox" ' + (checked ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleTeamMember(event, \'' + name.replace(/'/g, "\'") + '\');">' +
+                            '<input type="checkbox" class="team-filter-checkbox" ' + (checked ? 'checked' : '') + ' tabindex="-1">' +
                             '<span class="team-filter-item-label">' + name + '</span>' +
                             '<span class="team-filter-count-badge">' + count + '</span>' +
                         '</div>';
@@ -4025,13 +4040,14 @@
             });
 
             if (selectedTeammatesSet.size === 0) {
-                // Was All -> now select all except clicked, or just clicked?
-                // When in "All" mode and user unchecks one member, select all others
+                // If currently "All", clicking a member unchecks it and keeps all others checked
                 selectedTeammatesSet = new Set(activeMembers);
                 selectedTeammatesSet.delete(name);
             } else if (selectedTeammatesSet.has(name)) {
+                // Uncheck this member
                 selectedTeammatesSet.delete(name);
             } else {
+                // Check this member
                 selectedTeammatesSet.add(name);
             }
 
@@ -4114,9 +4130,10 @@
             const statusMap = {}; // statusName -> count
 
             currentTabTasks.forEach(function(t) {
-                let st = (t.stage && t.stage !== '-') ? t.stage : (t.currentStatus && t.currentStatus !== '-' ? t.currentStatus : (t.reviewStatus || ''));
-                st = String(st || '').trim();
-                if (!st || st === '-') st = (currentTab === 'new' ? 'New Task' : 'Active');
+                let st = String(t.stage || t.currentStatus || t.reviewStatus || '').trim();
+                if (!st || st === '-' || st === 'null' || st === 'undefined') {
+                    st = (currentTab === 'new' ? 'New Task' : 'Active');
+                }
                 statusMap[st] = (statusMap[st] || 0) + 1;
             });
 
@@ -4131,7 +4148,7 @@
             
             // All Statuses row
             html += '<div class="team-filter-item status-filter-all-item ' + (isAll ? 'active' : '') + '" onclick="toggleAllStatuses(event)">' +
-                        '<input type="checkbox" class="team-filter-checkbox status-filter-all-checkbox" ' + (isAll ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleAllStatuses(event);">' +
+                        '<input type="checkbox" class="team-filter-checkbox status-filter-all-checkbox" ' + (isAll ? 'checked' : '') + ' tabindex="-1">' +
                         '<span class="team-filter-item-label"><strong>⚡ All Statuses</strong></span>' +
                         '<span class="team-filter-count-badge">' + currentTabTasks.length + '</span>' +
                     '</div>';
@@ -4140,7 +4157,7 @@
                 const count = statusMap[st];
                 const checked = isAll || selectedStatusesSet.has(st);
                 html += '<div class="team-filter-item status-filter-status-item ' + (checked ? 'active' : '') + '" data-status="' + st.replace(/"/g, '&quot;') + '" onclick="toggleStatusItem(event, \'' + st.replace(/'/g, "\'") + '\')">' +
-                            '<input type="checkbox" class="team-filter-checkbox" ' + (checked ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleStatusItem(event, \'' + st.replace(/'/g, "\'") + '\');">' +
+                            '<input type="checkbox" class="team-filter-checkbox" ' + (checked ? 'checked' : '') + ' tabindex="-1">' +
                             '<span class="team-filter-item-label">' + st + '</span>' +
                             '<span class="team-filter-count-badge">' + count + '</span>' +
                         '</div>';
@@ -4169,7 +4186,8 @@
             const currentTabTasks = tasks || [];
             const activeStatuses = [];
             currentTabTasks.forEach(function(t) {
-                let s = (t.stage && t.stage !== '-') ? t.stage : (t.currentStatus || t.reviewStatus || 'New Task');
+                let s = String(t.stage || t.currentStatus || t.reviewStatus || '').trim();
+                if (!s || s === '-' || s === 'null' || s === 'undefined') s = (currentTab === 'new' ? 'New Task' : 'Active');
                 if (s && activeStatuses.indexOf(s) === -1) activeStatuses.push(s);
             });
 
@@ -4257,101 +4275,6 @@
                 const text = item.textContent.toLowerCase();
                 item.style.display = text.indexOf(query) >= 0 ? 'flex' : 'none';
             });
-        }
-
-        function onInitialDataError(err) {
-            loadingOverlay.style.display = 'none';
-            showToast('Connection Error', err.message || 'Failed to load data from backend.', true);
-        }
-        
-        function renderDropdownMenuHtml(itemsHtmlArray, searchPlaceholder, alwaysSearch) {
-            const hasMany = alwaysSearch || (itemsHtmlArray.length > 10);
-            let html = '';
-            if (hasMany) {
-                html += '<div class="dropdown-search-wrapper" onclick="event.stopPropagation();">' +
-                            '<input type="text" class="dropdown-search-input" placeholder="' + (searchPlaceholder || 'Search...') + '" onclick="event.stopPropagation();">' +
-                        '</div>';
-            }
-            html += '<div class="dropdown-items-list">' + itemsHtmlArray.join('') + '</div>';
-            return html;
-        }
-
-        function populateDropdownMenus() {
-            // Client Name (display Short Code only, with search)
-            const clientMenu = document.getElementById('menu-client');
-            const clientItems = dropdownData.customers.map(function(c) {
-                if (c.shortCode === 'ALL COMPANY') {
-                    return '<div class="dropdown-item" data-value="ALL COMPANY">🏢 ALL COMPANY</div>';
-                }
-                return '<div class="dropdown-item" data-value="' + c.shortCode + '">' + c.shortCode + '</div>';
-            });
-            clientMenu.innerHTML = renderDropdownMenuHtml(clientItems, 'Search client name...', true);
-            
-            // Platforms
-            const platformMenu = document.getElementById('menu-platform');
-            const platformItems = dropdownData.platforms.map(function(p) {
-                return '<div class="dropdown-item" data-value="' + p + '">' + p + '</div>';
-            });
-            platformMenu.innerHTML = renderDropdownMenuHtml(platformItems, 'Search platform...');
-            
-            // Task Types
-            const typeMenu = document.getElementById('menu-type');
-            const typeItems = dropdownData.taskTypes.map(function(t) {
-                return '<div class="dropdown-item" data-value="' + t + '">' + t + '</div>';
-            });
-            typeMenu.innerHTML = renderDropdownMenuHtml(typeItems, 'Search task type...');
-            
-            // Priorities
-            const priorityMenu = document.getElementById('menu-priority');
-            const priorityItems = dropdownData.priorities.map(function(p) {
-                return '<div class="dropdown-item" data-value="' + p.value + '"><span class="priority-dot" style="background:' + (p.color || '#999') + '"></span>' + p.value + '</div>';
-            });
-            priorityMenu.innerHTML = renderDropdownMenuHtml(priorityItems, 'Search priority...');
-        }
-
-        
-        // --- Web Notification & Web Audio Chime Reminder Engine ---
-        const SNOOZE_STORAGE_KEY = 'bitrix_task_snooze_reminders_v1';
-        let snoozeMap = {};
-        try {
-            snoozeMap = JSON.parse(localStorage.getItem(SNOOZE_STORAGE_KEY) || '{}');
-        } catch(e) {
-            snoozeMap = {};
-        }
-
-        function playReminderChime() {
-            try {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (!AudioContext) return;
-                const ctx = new AudioContext();
-                
-                const now = ctx.currentTime;
-                // Note 1: E5 (659.25Hz)
-                const osc1 = ctx.createOscillator();
-                const gain1 = ctx.createGain();
-                osc1.type = 'sine';
-                osc1.frequency.setValueAtTime(659.25, now);
-                gain1.gain.setValueAtTime(0.3, now);
-                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-                osc1.connect(gain1);
-                gain1.connect(ctx.destination);
-                osc1.start(now);
-                osc1.stop(now + 0.6);
-
-                // Note 2: B5 (987.77Hz)
-                const osc2 = ctx.createOscillator();
-                const gain2 = ctx.createGain();
-                osc2.type = 'sine';
-                osc2.frequency.setValueAtTime(987.77, now + 0.15);
-                gain2.gain.setValueAtTime(0.35, now + 0.15);
-                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
-                osc2.connect(gain2);
-                gain2.connect(ctx.destination);
-                osc2.start(now + 0.15);
-                osc2.stop(now + 0.9);
-            } catch(e) {
-                console.warn('Audio chime note:', e);
-            }
         }
 
         function requestNotificationPermission() {
