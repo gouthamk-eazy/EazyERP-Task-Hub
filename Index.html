@@ -2390,7 +2390,18 @@
                         <div class="team-filter-item active" data-name="ALL">All Team Members</div>
                     </div>
                 </div>
-                
+
+                <!-- Status / Stage Filter Dropdown -->
+                <div class="team-filter-box" id="statusFilterBox">
+                    <button class="team-filter-btn" id="statusFilterBtn" title="Filter by Status / Stage">
+                        <i data-lucide="tag"></i>
+                        <span id="selectedStatusLabel">All Status</span>
+                        <i data-lucide="chevron-down"></i>
+                    </button>
+                    <div class="team-filter-menu hidden" id="statusFilterMenu">
+                        <div class="team-filter-item active" data-status="ALL">⚡ All Statuses</div>
+                    </div>
+                </div>
                 <div class="quick-filters">
                     <div class="filter-pill active" data-filter="all">
                         All <span class="filter-count" id="countAll">0</span>
@@ -2412,9 +2423,7 @@
                     </div>
                 </div>
                 
-                <div class="task-count-display">
-                    <span id="visibleTaskCount">0</span> tasks in <span id="currentTabLabel" style="font-weight: 600; color: var(--brand);">New Tasks</span>
-                </div>
+                
             </div>
 
             <!-- Split View -->
@@ -3200,6 +3209,10 @@
             
             // Initial Action bar for active tab
             updateActionBarForTab();
+            selectedStatusFilter = 'ALL';
+            const sl = document.getElementById('selectedStatusLabel'); if (sl) sl.textContent = 'All Status';
+            setupTeamFilterDropdown();
+            setupStatusFilterDropdown();
 
             btnPrev.addEventListener('click', function() { navigateTask(-1); });
             btnNext.addEventListener('click', function() { navigateTask(1); });
@@ -3804,6 +3817,73 @@
             showToast('Profile Switched', 'Active view set to ' + name + ' (' + role + ').');
         }
         
+                let selectedStatusFilter = 'ALL';
+
+        function setupStatusFilterDropdown() {
+            const menu = document.getElementById('statusFilterMenu');
+            const btn = document.getElementById('statusFilterBtn');
+            const label = document.getElementById('selectedStatusLabel');
+            const box = document.getElementById('statusFilterBox');
+            if (!menu || !btn || !box) return;
+
+            const currentTabTasks = tasks || [];
+            const statusMap = {}; // statusName -> count
+
+            currentTabTasks.forEach(function(t) {
+                let st = (t.stage && t.stage !== '-') ? t.stage : (t.currentStatus && t.currentStatus !== '-' ? t.currentStatus : (t.reviewStatus || ''));
+                st = String(st || '').trim();
+                if (!st || st === '-') st = (currentTab === 'new' ? 'New Task' : 'Active');
+                statusMap[st] = (statusMap[st] || 0) + 1;
+            });
+
+            const sortedStatuses = Object.keys(statusMap).sort(function(a, b) {
+                return a.localeCompare(b);
+            });
+
+            let html = '<div class="team-filter-item ' + (selectedStatusFilter === 'ALL' ? 'active' : '') + '" data-status="ALL">' +
+                           '<span>⚡ All Statuses</span>' +
+                           '<span style="background:var(--brand-bg); color:var(--brand); font-weight:700; font-size:10.5px; padding:2px 8px; border-radius:12px; margin-left:auto;">' + currentTabTasks.length + '</span>' +
+                       '</div>';
+
+            sortedStatuses.forEach(function(st) {
+                const count = statusMap[st];
+                const isSelected = selectedStatusFilter === st;
+                html += '<div class="team-filter-item ' + (isSelected ? 'active' : '') + '" data-status="' + st.replace(/"/g, '&quot;') + '">' +
+                            '<span>' + st + '</span>' +
+                            '<span style="background:var(--brand-bg); color:var(--brand); font-weight:700; font-size:10.5px; padding:2px 8px; border-radius:12px; margin-left:auto;">' + count + '</span>' +
+                        '</div>';
+            });
+
+            menu.innerHTML = html;
+
+            btn.onclick = function(e) {
+                e.stopPropagation();
+                // Close team menu if open
+                const tm = document.getElementById('teamFilterMenu');
+                if (tm) tm.classList.add('hidden');
+                menu.classList.toggle('hidden');
+            };
+
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('#statusFilterBox')) {
+                    menu.classList.add('hidden');
+                }
+            });
+
+            menu.querySelectorAll('.team-filter-item').forEach(function(item) {
+                item.onclick = function() {
+                    menu.querySelectorAll('.team-filter-item').forEach(function(i) { i.classList.remove('active'); });
+                    item.classList.add('active');
+                    selectedStatusFilter = item.getAttribute('data-status');
+                    if (label) {
+                        label.textContent = selectedStatusFilter === 'ALL' ? 'All Status' : selectedStatusFilter;
+                    }
+                    menu.classList.add('hidden');
+                    updateList();
+                };
+            });
+        }
+
         function setupTeamFilterDropdown() {
             const menu = document.getElementById('teamFilterMenu');
             const btn = document.getElementById('teamFilterBtn');
@@ -4361,6 +4441,13 @@
                     if (!isMatch) return false;
                 }
 
+                                // Status Filter
+                if (selectedStatusFilter && selectedStatusFilter !== 'ALL') {
+                    const stLower = selectedStatusFilter.toLowerCase();
+                    const taskSt = String(t.stage || t.currentStatus || t.reviewStatus || (currentTab === 'new' ? 'New Task' : 'Active')).toLowerCase();
+                    if (taskSt.indexOf(stLower) === -1) return false;
+                }
+
                 // 3. Fuzzy search filter
                 if (!matchesTaskFuzzy(t, query)) {
                     return false;
@@ -4387,7 +4474,7 @@
 
         function updateListCounts() {
             document.getElementById('headerCountBadge').textContent = visibleTasks.length;
-            document.getElementById('visibleTaskCount').textContent = visibleTasks.length;
+            const vtc = document.getElementById('visibleTaskCount'); if (vtc) vtc.textContent = visibleTasks.length;
             
             document.getElementById('countAll').textContent = tasks.length;
             document.getElementById('countUnread').textContent = tasks.filter(function(t) { return !isRead(t.bitrixId); }).length;
