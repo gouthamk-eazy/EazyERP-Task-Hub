@@ -4007,38 +4007,54 @@
         // Check reminders every 20 seconds
         setInterval(checkDueReminders, 20000);
 
-        function toggleSnoozeMenu(event) {
-            event.stopPropagation();
+                let activeSnoozeTargetId = null;
+
+        function toggleSnoozeMenu(event, specificTaskId) {
+            if (event) event.stopPropagation();
             requestNotificationPermission();
+            
+            const targetId = specificTaskId || selectedTaskId;
+            if (!targetId) {
+                showToast('Notice', 'Please select a task first to set a reminder.', true);
+                return;
+            }
+            activeSnoozeTargetId = targetId;
+
             const popover = document.getElementById('snoozePopover');
             if (!popover) return;
 
-            if (!popover.classList.contains('hidden')) {
+            if (!popover.classList.contains('hidden') && popover.getAttribute('data-active-id') === String(targetId)) {
                 popover.classList.add('hidden');
                 return;
             }
 
-            const btn = document.getElementById('btnSnoozeReminder');
-            const rect = btn.getBoundingClientRect();
-            popover.style.top = (rect.bottom + 8) + 'px';
-            popover.style.left = Math.max(10, Math.min(window.innerWidth - 300, rect.left - 100)) + 'px';
+            popover.setAttribute('data-active-id', String(targetId));
+
+            const triggerEl = (event && event.currentTarget) ? event.currentTarget : document.getElementById('btnSnoozeReminder');
+            if (triggerEl) {
+                const rect = triggerEl.getBoundingClientRect();
+                popover.style.top = Math.min(window.innerHeight - 380, rect.bottom + 6) + 'px';
+                popover.style.left = Math.max(10, Math.min(window.innerWidth - 300, rect.left - 120)) + 'px';
+            } else {
+                popover.style.top = '120px';
+                popover.style.right = '40px';
+            }
             
             // Set default custom date to tomorrow 9am
             const tm = new Date();
             tm.setDate(tm.getDate() + 1);
             tm.setHours(9, 0, 0, 0);
             const isoLocal = new Date(tm.getTime() - tm.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-            document.getElementById('snoozeCustomInput').value = isoLocal;
+            const customInput = document.getElementById('snoozeCustomInput');
+            if (customInput) customInput.value = isoLocal;
 
-            // Check if current task has snooze
+            // Check if target task has existing snooze
             const clearArea = document.getElementById('snoozeClearArea');
-            if (selectedTaskId) {
-                const task = tasks.find(function(t) { return t.id === selectedTaskId; });
-                if (task && snoozeMap[task.bitrixId]) {
-                    clearArea.classList.remove('hidden');
-                } else {
-                    clearArea.classList.add('hidden');
-                }
+            const targetTask = tasks.find(function(t) { return t.id === targetId; });
+            if (clearArea && targetTask && snoozeMap[targetTask.bitrixId]) {
+                clearArea.classList.remove('hidden');
+            } else if (clearArea) {
+                clearArea.classList.add('hidden');
             }
 
             popover.classList.remove('hidden');
@@ -4088,9 +4104,10 @@
             setTaskSnoozeTimestamp(target.getTime(), target.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
         }
 
-        function setTaskSnoozeTimestamp(timestampMs, label) {
-            if (!selectedTaskId) return;
-            const task = tasks.find(function(t) { return t.id === selectedTaskId; });
+                function setTaskSnoozeTimestamp(timestampMs, label) {
+            const targetId = activeSnoozeTargetId || selectedTaskId;
+            if (!targetId) return;
+            const task = tasks.find(function(t) { return t.id === targetId; });
             if (!task) return;
 
             snoozeMap[task.bitrixId] = {
@@ -4113,7 +4130,21 @@
             }).catch(function(err) { console.warn('Follow-up date sync note:', err); });
 
             closeSnoozeMenu();
-            showToast('Reminder Set', 'Reminder scheduled for ' + label);
+            showToast('Reminder Set', 'Reminder for #' + task.bitrixId + ' scheduled for ' + label);
+            updateList();
+        }
+
+        function clearCurrentTaskSnooze() {
+            const targetId = activeSnoozeTargetId || selectedTaskId;
+            if (!targetId) return;
+            const task = tasks.find(function(t) { return t.id === targetId; });
+            if (!task) return;
+
+            delete snoozeMap[task.bitrixId];
+            try { localStorage.setItem(SNOOZE_STORAGE_KEY, JSON.stringify(snoozeMap)); } catch(e) {}
+            
+            closeSnoozeMenu();
+            showToast('Reminder Cleared', 'Reminder for #' + task.bitrixId + ' removed.');
             updateList();
         }
 
@@ -4348,6 +4379,9 @@
                         '<div class="card-actions">' +
                             '<button class="card-action-btn star ' + (isTaskStarred ? 'active' : '') + '" title="' + (isTaskStarred ? 'Unstar task' : 'Star as important') + '" onclick="event.stopPropagation(); toggleStar(\'' + task.bitrixId + '\');">' +
                                 starIconSvg +
+                            '</button>' +
+                            '<button class="card-action-btn" title="Set Reminder / Snooze" onclick="event.stopPropagation(); toggleSnoozeMenu(event, \'' + task.id + '\');">' +
+                                icon('clock') +
                             '</button>' +
                             '<button class="card-action-btn" title="' + (isTaskRead ? 'Mark as unread' : 'Mark as read') + '" onclick="event.stopPropagation(); toggleRead(\'' + task.bitrixId + '\');">' +
                                 readIconSvg +
