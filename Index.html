@@ -3964,18 +3964,23 @@
         // ---- TEAM FILTER ----
 
         function getActiveMembersFromTasks() {
-            const memberMap = {};
+            const memberMap = {}; // name -> unique task count
             (tasks || []).forEach(function(t) {
-                function add(name) {
+                // Collect unique names involved in this task
+                const namesForThisTask = new Set();
+                function collect(name) {
                     if (!name || name === '-' || String(name).trim() === '') return;
-                    const n = String(name).trim();
-                    memberMap[n] = (memberMap[n] || 0) + 1;
+                    namesForThisTask.add(String(name).trim());
                 }
-                add(t.owner);
-                add(t.assignee);
+                collect(t.owner);
+                collect(t.assignee);
                 if (t.contactPerson && t.contactPerson !== '-') {
-                    String(t.contactPerson).split(',').forEach(function(cp) { add(cp); });
+                    String(t.contactPerson).split(',').forEach(function(cp) { collect(cp); });
                 }
+                // Increment each unique person's count by 1 for this task
+                namesForThisTask.forEach(function(name) {
+                    memberMap[name] = (memberMap[name] || 0) + 1;
+                });
             });
             return memberMap;
         }
