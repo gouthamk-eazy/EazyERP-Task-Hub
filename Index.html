@@ -3789,37 +3789,74 @@
             const box = document.getElementById('teamFilterBox');
             if (!menu || !btn || !box) return;
 
-            // If regular CSE user, hide teammate filter box since they only see their own tasks
-            if (!currentUserAuth.isSuperAdmin && !currentUserAuth.isManager && !currentUserAuth.isAdmin) {
-                box.classList.add('hidden');
-                return;
-            }
-
             box.classList.remove('hidden');
 
-            let html = '<div class="team-filter-item active" data-name="ALL">👥 ' + (currentUserAuth.isSuperAdmin ? 'All Team Members' : 'All My Clients & CSEs') + '</div>';
+            // Gather all distinct teammates across dropdowns, customers, and active task data
+            const memberMap = {}; // name -> { count: 0, roles: Set() }
 
-            if (currentUserAuth.isSuperAdmin) {
-                (dropdownData.teammates || []).forEach(function(tm) {
-                    html += '<div class="team-filter-item" data-name="' + tm.name + '">' + tm.name + (tm.team ? ' <span style="font-size:10px; color:var(--text-muted);">(' + tm.team + ')</span>' : '') + '</div>';
-                });
-            } else if (currentUserAuth.isManager) {
-                // Manager / APM: Show CSEs assigned to their clients
-                const myName = currentUserAuth.name.toLowerCase();
-                const myCSEs = new Set();
-                (dropdownData.customers || []).forEach(function(c) {
-                    if ((c.apm && c.apm.toLowerCase() === myName) || (c.taskOwner && c.taskOwner.toLowerCase() === myName)) {
-                        if (c.cse && c.cse.toLowerCase() !== myName) {
-                            myCSEs.add(c.cse);
-                        }
-                    }
-                });
-
-                html += '<div class="team-filter-item" data-name="' + currentUserAuth.name + '">👤 ' + currentUserAuth.name + ' (My Direct Tasks)</div>';
-                myCSEs.forEach(function(cseName) {
-                    html += '<div class="team-filter-item" data-name="' + cseName + '">🛠️ ' + cseName + ' (CSE)</div>';
-                });
+            function addMember(name, role) {
+                if (!name || name === '-' || String(name).trim() === '' || name === 'ALL COMPANY') return;
+                const cleanName = String(name).trim();
+                if (!memberMap[cleanName]) {
+                    memberMap[cleanName] = { count: 0, roles: [] };
+                }
+                if (role && memberMap[cleanName].roles.indexOf(role) === -1) {
+                    memberMap[cleanName].roles.push(role);
+                }
             }
+
+            // 1. From Teammates sheet
+            (dropdownData.teammates || []).forEach(function(tm) {
+                addMember(tm.name, tm.role || 'Member');
+            });
+
+            // 2. From Customer Master (APM / CSE / Task Owner)
+            (dropdownData.customers || []).forEach(function(c) {
+                addMember(c.apm, 'APM');
+                addMember(c.cse, 'CSE');
+                addMember(c.taskOwner, 'Task Owner');
+            });
+
+            // 3. From loaded tasks across all tabs (count active tasks)
+            const currentTabTasks = tasks || [];
+            currentTabTasks.forEach(function(t) {
+                if (t.owner && t.owner !== '-') {
+                    addMember(t.owner, 'Owner');
+                    if (memberMap[t.owner]) memberMap[t.owner].count++;
+                }
+                if (t.assignee && t.assignee !== '-' && t.assignee !== t.owner) {
+                    addMember(t.assignee, 'Assignee');
+                    if (memberMap[t.assignee]) memberMap[t.assignee].count++;
+                }
+                if (t.contactPerson && t.contactPerson !== '-') {
+                    String(t.contactPerson).split(',').forEach(function(cp) {
+                        const cleanCp = cp.trim();
+                        addMember(cleanCp, 'Contact');
+                        if (cleanCp !== t.owner && cleanCp !== t.assignee && memberMap[cleanCp]) {
+                            memberMap[cleanCp].count++;
+                        }
+                    });
+                }
+            });
+
+            const sortedMembers = Object.keys(memberMap).sort(function(a, b) {
+                return a.localeCompare(b);
+            });
+
+            let html = '<div class="team-filter-item ' + (selectedTeammateFilter === 'ALL' ? 'active' : '') + '" data-name="ALL">' +
+                           '<span>👥 All Team Members</span>' +
+                           '<span style="background:var(--brand-bg); color:var(--brand); font-weight:700; font-size:10.5px; padding:2px 8px; border-radius:12px; margin-left:auto;">' + currentTabTasks.length + '</span>' +
+                       '</div>';
+
+            sortedMembers.forEach(function(name) {
+                const info = memberMap[name];
+                const countBadge = info.count > 0 ? '<span style="background:var(--brand-bg); color:var(--brand); font-weight:700; font-size:10.5px; padding:2px 8px; border-radius:12px; margin-left:auto;">' + info.count + '</span>' : '';
+                const isSelected = selectedTeammateFilter === name;
+                html += '<div class="team-filter-item ' + (isSelected ? 'active' : '') + '" data-name="' + name.replace(/"/g, '&quot;') + '">' + 
+                            '<span>' + name + '</span>' + 
+                            countBadge + 
+                        '</div>';
+            });
 
             menu.innerHTML = html;
 
@@ -3840,7 +3877,7 @@
                     item.classList.add('active');
                     selectedTeammateFilter = item.getAttribute('data-name');
                     if (label) {
-                        label.textContent = selectedTeammateFilter === 'ALL' ? (currentUserAuth.isSuperAdmin ? 'All Team' : 'All My Portfolio') : selectedTeammateFilter;
+                        label.textContent = selectedTeammateFilter === 'ALL' ? 'All Team' : selectedTeammateFilter;
                     }
                     menu.classList.add('hidden');
                     updateList();
@@ -4067,8 +4104,10 @@
 
         document.addEventListener('click', function(e) {
             const popover = document.getElementById('snoozePopover');
-            if (popover && !popover.classList.contains('hidden') && !popover.contains(e.target) && e.target.id !== 'btnSnoozeReminder') {
-                popover.classList.add('hidden');
+            if (popover && !popover.classList.contains('hidden')) {
+                if (!popover.contains(e.target) && !e.target.closest('#btnSnoozeReminder') && !e.target.closest('.card-action-btn')) {
+                    popover.classList.add('hidden');
+                }
             }
         });
 
