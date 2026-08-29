@@ -2266,18 +2266,18 @@
         /* Snooze / Reminder Popover Styles */
         .snooze-popover {
             position: fixed;
-            z-index: 100001;
-            width: 290px;
+            z-index: 100005;
+            width: 300px;
             background: var(--bg-secondary);
-            border: 1px solid var(--border-strong);
+            border: 1.5px solid var(--brand);
             border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-xl);
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25), 0 0 0 1px var(--border-medium);
             padding: 14px;
             display: flex;
             flex-direction: column;
             gap: 10px;
             animation: fadeIn 0.15s ease-out;
-            backdrop-filter: blur(16px);
+            backdrop-filter: blur(20px);
         }
         .snooze-header {
             display: flex;
@@ -4616,22 +4616,31 @@
                 const rect = triggerEl.getBoundingClientRect();
                 console.log('[REMINDER DEBUG] Trigger element found:', triggerEl, 'BoundingRect:', rect);
                 if (rect.width > 0 && rect.height > 0) {
-                    const popoverWidth = 295;
+                    const popoverWidth = 300;
                     let top = rect.bottom + 8;
-                    let left = rect.left - 100;
 
-                    // Adjust to stay inside window bounds
+                    // If trigger is on right side of viewport (like the header button), align to right of trigger
+                    if (rect.left > window.innerWidth / 2) {
+                        let right = window.innerWidth - rect.right;
+                        if (right < 10) right = 10;
+                        popover.style.right = right + 'px';
+                        popover.style.left = 'auto';
+                    } else {
+                        // Trigger on left side of viewport (like on task card)
+                        let left = rect.left;
+                        if (left + popoverWidth > window.innerWidth - 10) {
+                            left = window.innerWidth - popoverWidth - 10;
+                        }
+                        if (left < 10) left = 10;
+                        popover.style.left = left + 'px';
+                        popover.style.right = 'auto';
+                    }
+
+                    // Adjust top to stay inside window bounds
                     if (top + 400 > window.innerHeight) {
                         top = Math.max(10, rect.top - 410);
                     }
-                    if (left + popoverWidth > window.innerWidth - 10) {
-                        left = window.innerWidth - popoverWidth - 10;
-                    }
-                    if (left < 10) left = 10;
-
                     popover.style.top = top + 'px';
-                    popover.style.left = left + 'px';
-                    popover.style.right = 'auto';
                 } else {
                     popover.style.top = '70px';
                     popover.style.right = '24px';
