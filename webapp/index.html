@@ -613,6 +613,17 @@
             cursor: pointer;
             transition: all var(--transition-fast);
         }
+        .team-filter-btn svg {
+            width: 14px;
+            height: 14px;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+        }
+        .team-filter-btn svg:last-child {
+            width: 12px;
+            height: 12px;
+            color: var(--text-muted);
+        }
         .team-filter-btn:hover {
             border-color: var(--brand);
             background: var(--bg-secondary);
@@ -714,17 +725,28 @@
             position: relative;
             flex: 1;
             max-width: 320px;
+            display: flex;
+            align-items: center;
         }
 
         .search-box .icon-search {
             position: absolute;
-            left: var(--space-md);
+            left: 12px;
             top: 50%;
             transform: translateY(-50%);
             color: var(--text-muted);
-            width: 15px;
-            height: 15px;
+            width: 14px;
+            height: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             pointer-events: none;
+        }
+
+        .search-box .icon-search svg {
+            width: 14px;
+            height: 14px;
+            display: block;
         }
 
         .search-input {
@@ -733,9 +755,9 @@
             background: var(--bg-primary);
             border: 1px solid var(--border-medium);
             border-radius: var(--radius-full);
-            padding: 0 var(--space-md) 0 34px;
+            padding: 0 12px 0 34px;
             font-family: inherit;
-            font-size: 12.5px;
+            font-size: 12px;
             color: var(--text-primary);
             transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
         }
@@ -2354,7 +2376,7 @@
             <div class="filters-area">
                 <div class="search-box">
                     <div class="icon-search"><i data-lucide="search"></i></div>
-                    <input type="text" class="search-input" id="searchInput" placeholder="Fuzzy search title, ID, remarks, owner...">
+                    <input type="text" class="search-input" id="searchInput" placeholder="Search tasks by title, ID, remarks, client...">
                 </div>
 
                 <!-- Teammate Filter (Super Admin & Admin) -->
@@ -3839,7 +3861,10 @@
                 }
             });
 
-            const sortedMembers = Object.keys(memberMap).sort(function(a, b) {
+            // Filter to ONLY team members who have at least 1 linked task
+            const activeLinkedMembers = Object.keys(memberMap).filter(function(name) {
+                return memberMap[name] && memberMap[name].count > 0;
+            }).sort(function(a, b) {
                 return a.localeCompare(b);
             });
 
@@ -3848,9 +3873,9 @@
                            '<span style="background:var(--brand-bg); color:var(--brand); font-weight:700; font-size:10.5px; padding:2px 8px; border-radius:12px; margin-left:auto;">' + currentTabTasks.length + '</span>' +
                        '</div>';
 
-            sortedMembers.forEach(function(name) {
+            activeLinkedMembers.forEach(function(name) {
                 const info = memberMap[name];
-                const countBadge = info.count > 0 ? '<span style="background:var(--brand-bg); color:var(--brand); font-weight:700; font-size:10.5px; padding:2px 8px; border-radius:12px; margin-left:auto;">' + info.count + '</span>' : '';
+                const countBadge = '<span style="background:var(--brand-bg); color:var(--brand); font-weight:700; font-size:10.5px; padding:2px 8px; border-radius:12px; margin-left:auto;">' + info.count + '</span>';
                 const isSelected = selectedTeammateFilter === name;
                 html += '<div class="team-filter-item ' + (isSelected ? 'active' : '') + '" data-name="' + name.replace(/"/g, '&quot;') + '">' + 
                             '<span>' + name + '</span>' + 
