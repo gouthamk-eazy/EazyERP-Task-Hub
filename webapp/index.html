@@ -594,9 +594,11 @@
             background: var(--brand-bg);
         }
 
-        /* Team Filter Dropdown */
+                /* Team & Status Multi-Select Filter Dropdowns */
         .team-filter-box {
             position: relative;
+            display: inline-flex;
+            align-items: center;
         }
         .team-filter-btn {
             height: 34px;
@@ -607,60 +609,169 @@
             color: var(--text-primary);
             font-size: 12px;
             font-weight: 500;
-            display: flex;
+            display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 6px;
             cursor: pointer;
             transition: all var(--transition-fast);
+            line-height: 1;
+            white-space: nowrap;
         }
         .team-filter-btn svg {
             width: 14px;
             height: 14px;
             color: var(--text-secondary);
             flex-shrink: 0;
+            display: inline-block;
+            vertical-align: middle;
         }
-        .team-filter-btn svg:last-child {
+        .team-filter-btn .chevron-icon {
             width: 12px;
             height: 12px;
             color: var(--text-muted);
+            transition: transform var(--transition-fast);
         }
         .team-filter-btn:hover {
             border-color: var(--brand);
             background: var(--bg-secondary);
         }
+        .team-filter-btn.has-filter {
+            background: var(--brand-bg);
+            border-color: var(--brand);
+            color: var(--brand);
+            font-weight: 600;
+        }
+        .team-filter-btn.has-filter svg {
+            color: var(--brand);
+        }
         .team-filter-menu {
             position: absolute;
-            top: 40px;
+            top: calc(100% + 6px);
             left: 0;
-            min-width: 200px;
+            min-width: 230px;
+            max-width: 320px;
             background: var(--bg-secondary);
-            border: 1px solid var(--border-medium);
+            border: 1px solid var(--border-strong);
             border-radius: var(--radius-md);
-            box-shadow: var(--shadow-lg);
+            box-shadow: var(--shadow-xl);
             z-index: 1000;
-            max-height: 280px;
+            max-height: 340px;
+            display: flex;
+            flex-direction: column;
+            padding: 6px;
+            backdrop-filter: blur(16px);
+            animation: fadeIn 0.15s ease-out;
+        }
+        .team-filter-search {
+            padding: 4px 6px 8px 6px;
+            border-bottom: 1px solid var(--border-light);
+            margin-bottom: 4px;
+        }
+        .team-filter-search input {
+            width: 100%;
+            height: 28px;
+            font-size: 11.5px;
+            padding: 0 8px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-medium);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            outline: none;
+        }
+        .team-filter-search input:focus {
+            border-color: var(--brand);
+        }
+        .team-filter-list {
             overflow-y: auto;
-            padding: 4px;
+            max-height: 240px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
         .team-filter-item {
-            padding: 8px 12px;
+            padding: 6px 8px;
             border-radius: var(--radius-sm);
             font-size: 12px;
             color: var(--text-primary);
             cursor: pointer;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 8px;
             transition: background var(--transition-fast);
+            user-select: none;
+            line-height: 1.3;
         }
         .team-filter-item:hover {
             background: var(--brand-bg);
             color: var(--brand);
         }
         .team-filter-item.active {
+            background: var(--brand-bg);
+            color: var(--brand);
+            font-weight: 600;
+        }
+        .team-filter-checkbox {
+            width: 15px;
+            height: 15px;
+            border-radius: 4px;
+            accent-color: var(--brand);
+            cursor: pointer;
+            flex-shrink: 0;
+            display: inline-block;
+            vertical-align: middle;
+            margin: 0;
+        }
+        .team-filter-item-label {
+            flex: 1;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .team-filter-item-label svg, .team-filter-item-label .item-emoji {
+            font-size: 13px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            vertical-align: middle;
+        }
+        .team-filter-count-badge {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            font-weight: 700;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+        .team-filter-item.active .team-filter-count-badge {
             background: var(--brand);
             color: #ffffff;
+        }
+        .team-filter-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 4px 2px 4px;
+            border-top: 1px solid var(--border-light);
+            margin-top: 4px;
+            font-size: 11px;
+        }
+        .team-filter-footer button {
+            background: none;
+            border: none;
+            color: var(--brand);
             font-weight: 600;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .team-filter-footer button:hover {
+            text-decoration: underline;
         }
 
         /* Field Locking (Role-based) */
@@ -3533,11 +3644,11 @@
             fetchInitialData();
         }
         
-        function mapBackendTaskToFrontend(bTask) {
+                function mapBackendTaskToFrontend(bTask) {
             const rawDl = bTask['Deadline Given'] || bTask['Deadline'] || '';
             const rawContact = bTask['Contact Person'] || '';
             const rawAssignee = bTask['Assignee'] || '';
-            const rawStatus = bTask['Current Status'] || bTask['Stage'] || '';
+            const rawStatus = bTask['Current Status'] || bTask['Stage'] || bTask['Status'] || bTask['Review Status'] || '';
             const bitrixIdStr = String(bTask['Bitrix ID'] || '').trim();
             const rawProj = String(bTask['Project'] || '').trim();
             const rawSpr = String(bTask['Sprint'] || '').trim();
@@ -3547,6 +3658,10 @@
             const rawRem = String(bTask["Goutham's Remarks"] || '').trim();
             const rawFollow = String(bTask['Next Follow Up Date'] || '').trim();
             const rawOwn = String(bTask['Task Owner'] || '').trim();
+            const rawClient = String(bTask['Client Name'] || '').trim();
+            const rawRevStatus = String(bTask['Review Status'] || '').trim();
+
+            const normalizedStatus = String(rawStatus || '').trim() || (rawRevStatus || 'New');
 
             return {
                 id: bitrixIdStr,
@@ -3563,7 +3678,8 @@
                 currentOwner: rawOwn,
                 assignee: String(rawAssignee || '-'),
                 rawAssignee: rawAssignee,
-                stage: String(rawStatus || '-'),
+                stage: normalizedStatus,
+                currentStatus: normalizedStatus,
                 rawStage: rawStatus,
                 project: rawProj || '-',
                 rawProject: rawProj,
@@ -3575,7 +3691,7 @@
                 rawParentId: rawPid,
                 chatId: rawCid || '-',
                 rawChatId: rawCid,
-                clientName: String(bTask['Client Name'] || ''),
+                clientName: rawClient,
                 contactPerson: rawContact || '-',
                 rawContact: rawContact,
                 platform: String(bTask['Platform'] || ''),
@@ -3587,7 +3703,7 @@
                 rawTechRemarks: String(bTask['Tech Remarks'] || ''),
                 nextFollowUpDate: (rawFollow && rawFollow !== '-') ? formatDate(rawFollow) : '-',
                 rawFollowUp: rawFollow,
-                reviewStatus: String(bTask['Review Status'] || '')
+                reviewStatus: rawRevStatus
             };
         }
 
@@ -3970,11 +4086,16 @@
                 menu.classList.toggle('hidden');
             };
 
-            document.addEventListener('click', function(e) {
-                if (!e.target.closest('#teamFilterBox')) {
-                    menu.classList.add('hidden');
-                }
-            });
+                    document.addEventListener('click', function(e) {
+            if (!e.target.closest('#teamFilterBox')) {
+                const tm = document.getElementById('teamFilterMenu');
+                if (tm) tm.classList.add('hidden');
+            }
+            if (!e.target.closest('#statusFilterBox')) {
+                const sm = document.getElementById('statusFilterMenu');
+                if (sm) sm.classList.add('hidden');
+            }
+        });
 
             menu.querySelectorAll('.team-filter-item').forEach(function(item) {
                 item.onclick = function() {
