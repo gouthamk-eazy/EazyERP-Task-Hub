@@ -2213,7 +2213,7 @@
         /* Snooze / Reminder Popover Styles */
         .snooze-popover {
             position: fixed;
-            z-index: 1050;
+            z-index: 100001;
             width: 290px;
             background: var(--bg-secondary);
             border: 1px solid var(--border-strong);
@@ -3226,9 +3226,28 @@
                 set[idStr] = true;
             }
             saveReadSet(set);
+            
+            const currentIdx = visibleTasks.findIndex(function(t) { return String(t.bitrixId) === idStr; });
+
             updateList();
             updateDetailActionsUI();
+
+            // Automatically shift task focus to next task
+            if (visibleTasks.length > 0) {
+                let nextIdx = currentIdx;
+                // If the task remains visible in the current list, advance to the next item
+                if (visibleTasks.findIndex(function(t) { return String(t.bitrixId) === idStr; }) > -1) {
+                    nextIdx = (currentIdx >= 0 && currentIdx + 1 < visibleTasks.length) ? currentIdx + 1 : 0;
+                } else {
+                    // If filtered out (e.g. on unread view), select item at the current slot
+                    if (nextIdx >= visibleTasks.length) nextIdx = Math.max(0, visibleTasks.length - 1);
+                }
+                if (visibleTasks[nextIdx]) {
+                    selectTask(visibleTasks[nextIdx].id);
+                }
+            }
         }
+
 
         function getStarredSet() {
             try {
@@ -4325,8 +4344,15 @@
         }
 
         function requestNotificationPermission() {
-            if ('Notification' in window && Notification.permission === 'default') {
-                Notification.requestPermission();
+            try {
+                if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+                    const p = Notification.requestPermission();
+                    if (p && typeof p.catch === 'function') {
+                        p.catch(function(e) { console.warn('Notification permission ignored in sandbox:', e); });
+                    }
+                }
+            } catch(e) {
+                console.warn('Notification API not accessible in this context:', e);
             }
         }
 
@@ -4336,8 +4362,8 @@
             const title = '🔔 Task Reminder: #' + task.bitrixId + ' ' + (task.clientName || '');
             const body = task.title + ' (Deadline: ' + task.deadline + ')';
 
-            if ('Notification' in window && Notification.permission === 'granted') {
-                try {
+            try {
+                if ('Notification' in window && Notification.permission === 'granted') {
                     const notif = new Notification(title, {
                         body: body,
                         icon: 'https://cdn-icons-png.flaticon.com/512/3239/3239958.png',
@@ -4348,9 +4374,9 @@
                         selectTask(task.id);
                         notif.close();
                     };
-                } catch(e) {
-                    console.warn('Notification error:', e);
                 }
+            } catch(e) {
+                console.warn('Notification error:', e);
             }
 
             showToast('⏰ Reminder Due', '#' + task.bitrixId + ': ' + task.title, false);
@@ -4359,6 +4385,8 @@
         function checkDueReminders() {
             const now = Date.now();
             let changed = false;
+
+            if (typeof snoozeMap === 'undefined' || !snoozeMap) return;
 
             Object.keys(snoozeMap).forEach(function(bid) {
                 const s = snoozeMap[bid];
@@ -4388,13 +4416,20 @@
         // Check reminders every 20 seconds
         setInterval(checkDueReminders, 20000);
 
-                let activeSnoozeTargetId = null;
+        let activeSnoozeTargetId = null;
 
         function toggleSnoozeMenu(event, specificTaskId) {
-            if (event) event.stopPropagation();
+            if (event) {
+                if (typeof event.stopPropagation === 'function') event.stopPropagation();
+                if (typeof event.preventDefault === 'function') event.preventDefault();
+            }
             requestNotificationPermission();
             
-            const targetId = specificTaskId || selectedTaskId;
+            let targetId = specificTaskId || selectedTaskId;
+            if (!targetId && visibleTasks.length > 0) {
+                targetId = visibleTasks[0].id;
+                selectTask(targetId);
+            }
             if (!targetId) {
                 showToast('Notice', 'Please select a task first to set a reminder.', true);
                 return;
@@ -4411,14 +4446,39 @@
 
             popover.setAttribute('data-active-id', String(targetId));
 
-            const triggerEl = (event && event.currentTarget) ? event.currentTarget : document.getElementById('btnSnoozeReminder');
-            if (triggerEl) {
+            // Determine trigger button for positioning
+            let triggerEl = null;
+            if (event && event.currentTarget && typeof event.currentTarget.getBoundingClientRect === 'function') {
+                triggerEl = event.currentTarget;
+            } else if (event && event.target) {
+                triggerEl = event.target.closest('#btnSnoozeReminder') || event.target.closest('.card-action-btn') || event.target.closest('button');
+            }
+            if (!triggerEl) {
+                triggerEl = document.getElementById('btnSnoozeReminder');
+            }
+
+            if (triggerEl && typeof triggerEl.getBoundingClientRect === 'function') {
                 const rect = triggerEl.getBoundingClientRect();
-                popover.style.top = Math.min(window.innerHeight - 380, rect.bottom + 6) + 'px';
-                popover.style.left = Math.max(10, Math.min(window.innerWidth - 300, rect.left - 120)) + 'px';
+                const popoverWidth = 295;
+                let top = rect.bottom + 8;
+                let left = rect.left - 100;
+
+                // Adjust to stay inside window bounds
+                if (top + 380 > window.innerHeight) {
+                    top = Math.max(10, rect.top - 390);
+                }
+                if (left + popoverWidth > window.innerWidth - 10) {
+                    left = window.innerWidth - popoverWidth - 10;
+                }
+                if (left < 10) left = 10;
+
+                popover.style.top = top + 'px';
+                popover.style.left = left + 'px';
+                popover.style.right = 'auto';
             } else {
-                popover.style.top = '120px';
+                popover.style.top = '100px';
                 popover.style.right = '40px';
+                popover.style.left = 'auto';
             }
             
             // Set default custom date to tomorrow 9am
@@ -4487,7 +4547,7 @@
             setTaskSnoozeTimestamp(target.getTime(), target.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
         }
 
-                function setTaskSnoozeTimestamp(timestampMs, label) {
+        function setTaskSnoozeTimestamp(timestampMs, label) {
             const targetId = activeSnoozeTargetId || selectedTaskId;
             if (!targetId) return;
             const task = tasks.find(function(t) { return t.id === targetId; });
@@ -4531,18 +4591,6 @@
             updateList();
         }
 
-        function clearCurrentTaskSnooze() {
-            if (!selectedTaskId) return;
-            const task = tasks.find(function(t) { return t.id === selectedTaskId; });
-            if (!task) return;
-
-            delete snoozeMap[task.bitrixId];
-            try { localStorage.setItem(SNOOZE_STORAGE_KEY, JSON.stringify(snoozeMap)); } catch(e) {}
-            
-            closeSnoozeMenu();
-            showToast('Reminder Cleared', 'Task reminder removed.');
-            updateList();
-        }
 
         // --- High Performance Fuzzy Lookup Algorithm ---
         function levenshteinDistance(s1, s2) {
@@ -4703,11 +4751,16 @@
             updateListCounts();
             renderList();
             
-            // If selected task is no longer visible, deselect
-            if (selectedTaskId && !visibleTasks.find(function(t) { return t.id === selectedTaskId; })) {
-                selectTask(null);
+            // By default, task detail will show the top task from the list
+            if (!selectedTaskId || !visibleTasks.find(function(t) { return t.id === selectedTaskId; })) {
+                if (visibleTasks.length > 0) {
+                    selectTask(visibleTasks[0].id);
+                } else {
+                    selectTask(null);
+                }
             }
         }
+
 
         function updateListCounts() {
             document.getElementById('headerCountBadge').textContent = visibleTasks.length;
@@ -5251,7 +5304,8 @@
                             updateList();
 
                             if (visibleTasks.length > 0) {
-                                selectTask(visibleTasks[0].id);
+                                const nextIdx = (currentIdx >= 0 && currentIdx < visibleTasks.length) ? currentIdx : Math.max(0, visibleTasks.length - 1);
+                                selectTask(visibleTasks[nextIdx].id);
                             } else {
                                 selectTask(null);
                             }
@@ -5275,7 +5329,8 @@
                     updateList();
 
                     if (visibleTasks.length > 0) {
-                        selectTask(visibleTasks[0].id);
+                        const nextIdx = (currentIdx >= 0 && currentIdx < visibleTasks.length) ? currentIdx : Math.max(0, visibleTasks.length - 1);
+                        selectTask(visibleTasks[nextIdx].id);
                     } else {
                         selectTask(null);
                     }
@@ -5284,6 +5339,7 @@
         }
         
         function removeTaskAndNext(taskId) {
+            const currentIdx = visibleTasks.findIndex(function(t) { return t.id === taskId; });
             const confirmedTask = tasks.find(function(t) { return t.id === taskId; });
             allTasksByTab[currentTab] = (allTasksByTab[currentTab] || []).filter(function(t) { return t.id !== taskId; });
             
@@ -5296,9 +5352,10 @@
             tasks = allTasksByTab[currentTab] || [];
             updateList();
             
-            // Auto select next if available
-            if(visibleTasks.length > 0) {
-                selectTask(visibleTasks[0].id);
+            // Auto select next task if available at the current slot or previous if at end
+            if (visibleTasks.length > 0) {
+                const nextIdx = (currentIdx >= 0 && currentIdx < visibleTasks.length) ? currentIdx : Math.max(0, visibleTasks.length - 1);
+                selectTask(visibleTasks[nextIdx].id);
             } else {
                 selectTask(null);
             }
