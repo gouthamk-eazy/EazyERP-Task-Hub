@@ -4336,6 +4336,8 @@
                 const clientDisplay = (task.clientName && task.clientName !== '-') ? '<span class="card-client-tag">🏢 ' + task.clientName + '</span>' : '';
                 const ownerDisplay = (task.owner && task.owner !== '-') ? '<span class="card-owner-text" title="Owner">' + icon('user') + ' ' + task.owner + '</span>' : '';
                 const stageDisplay = (task.stage && task.stage !== '-') ? '<span class="card-stage-tag">' + task.stage + '</span>' : '';
+                const snoozeInfo = (typeof snoozeMap !== 'undefined' && snoozeMap[task.bitrixId]) ? snoozeMap[task.bitrixId] : null;
+                const snoozeBadgeHtml = snoozeInfo ? '<span class="snooze-badge" title="Reminder: ' + snoozeInfo.label + '">⏰ ' + snoozeInfo.label + '</span>' : '';
 
                 card.innerHTML = 
                     '<div class="task-card-header">' +
