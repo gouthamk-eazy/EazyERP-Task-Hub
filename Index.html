@@ -3937,16 +3937,15 @@
             showToast('Profile Switched', 'Active view set to ' + name + ' (' + role + ').');
         }
         
+                // ==========================================
+        // SMOOTH MULTI-SELECT STATE & ENGINES
         // ==========================================
-        // MULTI-SELECT STATE & ENGINES
-        // ==========================================
-        let selectedTeammatesSet = new Set();
-        let selectedStatusesSet = new Set();
+        let selectedTeammatesSet = new Set(); // If empty => All active
+        let selectedStatusesSet = new Set();  // If empty => All active
 
         function setupTeamFilterDropdown() {
             const menu = document.getElementById('teamFilterMenu');
             const btn = document.getElementById('teamFilterBtn');
-            const label = document.getElementById('selectedTeamLabel');
             const box = document.getElementById('teamFilterBox');
             if (!menu || !btn || !box) return;
 
@@ -3976,28 +3975,23 @@
                 return a.localeCompare(b);
             });
 
-            // Clean up selections that aren't in active members
-            selectedTeammatesSet.forEach(function(m) {
-                if (activeMembers.indexOf(m) === -1) selectedTeammatesSet.delete(m);
-            });
-
-            const isAll = selectedTeammatesSet.size === 0 || selectedTeammatesSet.size === activeMembers.length;
+            const isAll = selectedTeammatesSet.size === 0;
 
             let html = '<div class="team-filter-search"><input type="text" placeholder="Search team member..." oninput="filterDropdownList(this, \'teamFilterListContent\')" onclick="event.stopPropagation()"></div>';
             html += '<div class="team-filter-list" id="teamFilterListContent">';
             
-            // All Members checkbox item
-            html += '<div class="team-filter-item ' + (isAll ? 'active' : '') + '" onclick="toggleAllTeamMembers(event)">' +
-                        '<input type="checkbox" class="team-filter-checkbox" ' + (isAll ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleAllTeamMembers(event);">' +
+            // All Members row
+            html += '<div class="team-filter-item team-filter-all-item ' + (isAll ? 'active' : '') + '" onclick="toggleAllTeamMembers(event)">' +
+                        '<input type="checkbox" class="team-filter-checkbox team-filter-all-checkbox" ' + (isAll ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleAllTeamMembers(event);">' +
                         '<span class="team-filter-item-label"><strong>👥 All Team Members</strong></span>' +
                         '<span class="team-filter-count-badge">' + currentTabTasks.length + '</span>' +
                     '</div>';
 
             activeMembers.forEach(function(name) {
                 const count = memberMap[name];
-                const checked = !isAll && selectedTeammatesSet.has(name);
-                html += '<div class="team-filter-item ' + (checked ? 'active' : '') + '" onclick="toggleTeamMember(event, \'' + name.replace(/'/g, "\\'") + '\')">' +
-                            '<input type="checkbox" class="team-filter-checkbox" ' + (checked ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleTeamMember(event, \'' + name.replace(/'/g, "\\'") + '\');">' +
+                const checked = isAll || selectedTeammatesSet.has(name);
+                html += '<div class="team-filter-item team-filter-member-item ' + (checked ? 'active' : '') + '" data-name="' + name.replace(/"/g, '&quot;') + '" onclick="toggleTeamMember(event, \'' + name.replace(/'/g, "\'") + '\')">' +
+                            '<input type="checkbox" class="team-filter-checkbox" ' + (checked ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleTeamMember(event, \'' + name.replace(/'/g, "\'") + '\');">' +
                             '<span class="team-filter-item-label">' + name + '</span>' +
                             '<span class="team-filter-count-badge">' + count + '</span>' +
                         '</div>';
@@ -4020,6 +4014,70 @@
             };
         }
 
+        function toggleTeamMember(e, name) {
+            if (e) e.stopPropagation();
+            
+            const currentTabTasks = tasks || [];
+            const activeMembers = [];
+            currentTabTasks.forEach(function(t) {
+                if (t.owner && t.owner !== '-' && activeMembers.indexOf(t.owner) === -1) activeMembers.push(t.owner);
+                if (t.assignee && t.assignee !== '-' && activeMembers.indexOf(t.assignee) === -1) activeMembers.push(t.assignee);
+            });
+
+            if (selectedTeammatesSet.size === 0) {
+                // Was All -> now select all except clicked, or just clicked?
+                // When in "All" mode and user unchecks one member, select all others
+                selectedTeammatesSet = new Set(activeMembers);
+                selectedTeammatesSet.delete(name);
+            } else if (selectedTeammatesSet.has(name)) {
+                selectedTeammatesSet.delete(name);
+            } else {
+                selectedTeammatesSet.add(name);
+            }
+
+            if (selectedTeammatesSet.size === activeMembers.length || selectedTeammatesSet.size === 0) {
+                selectedTeammatesSet.clear();
+            }
+
+            syncTeamFilterDOM();
+            updateList();
+        }
+
+        function toggleAllTeamMembers(e) {
+            if (e) e.stopPropagation();
+            selectedTeammatesSet.clear();
+            syncTeamFilterDOM();
+            updateList();
+        }
+
+        function clearTeamFilters(e) {
+            if (e) e.stopPropagation();
+            selectedTeammatesSet.clear();
+            syncTeamFilterDOM();
+            updateList();
+        }
+
+        function syncTeamFilterDOM() {
+            const menu = document.getElementById('teamFilterMenu');
+            if (!menu) return;
+
+            const isAll = selectedTeammatesSet.size === 0;
+            const allCheckbox = menu.querySelector('.team-filter-all-checkbox');
+            const allItem = menu.querySelector('.team-filter-all-item');
+            if (allCheckbox) allCheckbox.checked = isAll;
+            if (allItem) allItem.classList.toggle('active', isAll);
+
+            menu.querySelectorAll('.team-filter-member-item').forEach(function(item) {
+                const name = item.getAttribute('data-name');
+                const isChecked = isAll || selectedTeammatesSet.has(name);
+                const cb = item.querySelector('.team-filter-checkbox');
+                if (cb) cb.checked = isChecked;
+                item.classList.toggle('active', isChecked);
+            });
+
+            updateTeamFilterButtonLabel();
+        }
+
         function updateTeamFilterButtonLabel() {
             const btn = document.getElementById('teamFilterBtn');
             const label = document.getElementById('selectedTeamLabel');
@@ -4037,31 +4095,6 @@
             }
         }
 
-        function toggleAllTeamMembers(e) {
-            if (e) e.stopPropagation();
-            selectedTeammatesSet.clear();
-            setupTeamFilterDropdown();
-            updateList();
-        }
-
-        function toggleTeamMember(e, name) {
-            if (e) e.stopPropagation();
-            if (selectedTeammatesSet.has(name)) {
-                selectedTeammatesSet.delete(name);
-            } else {
-                selectedTeammatesSet.add(name);
-            }
-            setupTeamFilterDropdown();
-            updateList();
-        }
-
-        function clearTeamFilters(e) {
-            if (e) e.stopPropagation();
-            selectedTeammatesSet.clear();
-            setupTeamFilterDropdown();
-            updateList();
-        }
-
         function closeTeamMenu(e) {
             if (e) e.stopPropagation();
             const menu = document.getElementById('teamFilterMenu');
@@ -4074,7 +4107,6 @@
         function setupStatusFilterDropdown() {
             const menu = document.getElementById('statusFilterMenu');
             const btn = document.getElementById('statusFilterBtn');
-            const label = document.getElementById('selectedStatusLabel');
             const box = document.getElementById('statusFilterBox');
             if (!menu || !btn || !box) return;
 
@@ -4092,27 +4124,23 @@
                 return a.localeCompare(b);
             });
 
-            selectedStatusesSet.forEach(function(s) {
-                if (activeStatuses.indexOf(s) === -1) selectedStatusesSet.delete(s);
-            });
-
-            const isAll = selectedStatusesSet.size === 0 || selectedStatusesSet.size === activeStatuses.length;
+            const isAll = selectedStatusesSet.size === 0;
 
             let html = '<div class="team-filter-search"><input type="text" placeholder="Search status..." oninput="filterDropdownList(this, \'statusFilterListContent\')" onclick="event.stopPropagation()"></div>';
             html += '<div class="team-filter-list" id="statusFilterListContent">';
             
             // All Statuses row
-            html += '<div class="team-filter-item ' + (isAll ? 'active' : '') + '" onclick="toggleAllStatuses(event)">' +
-                        '<input type="checkbox" class="team-filter-checkbox" ' + (isAll ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleAllStatuses(event);">' +
+            html += '<div class="team-filter-item status-filter-all-item ' + (isAll ? 'active' : '') + '" onclick="toggleAllStatuses(event)">' +
+                        '<input type="checkbox" class="team-filter-checkbox status-filter-all-checkbox" ' + (isAll ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleAllStatuses(event);">' +
                         '<span class="team-filter-item-label"><strong>⚡ All Statuses</strong></span>' +
                         '<span class="team-filter-count-badge">' + currentTabTasks.length + '</span>' +
                     '</div>';
 
             activeStatuses.forEach(function(st) {
                 const count = statusMap[st];
-                const checked = !isAll && selectedStatusesSet.has(st);
-                html += '<div class="team-filter-item ' + (checked ? 'active' : '') + '" onclick="toggleStatusItem(event, \'' + st.replace(/'/g, "\\'") + '\')">' +
-                            '<input type="checkbox" class="team-filter-checkbox" ' + (checked ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleStatusItem(event, \'' + st.replace(/'/g, "\\'") + '\');">' +
+                const checked = isAll || selectedStatusesSet.has(st);
+                html += '<div class="team-filter-item status-filter-status-item ' + (checked ? 'active' : '') + '" data-status="' + st.replace(/"/g, '&quot;') + '" onclick="toggleStatusItem(event, \'' + st.replace(/'/g, "\'") + '\')">' +
+                            '<input type="checkbox" class="team-filter-checkbox" ' + (checked ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleStatusItem(event, \'' + st.replace(/'/g, "\'") + '\');">' +
                             '<span class="team-filter-item-label">' + st + '</span>' +
                             '<span class="team-filter-count-badge">' + count + '</span>' +
                         '</div>';
@@ -4135,6 +4163,68 @@
             };
         }
 
+        function toggleStatusItem(e, st) {
+            if (e) e.stopPropagation();
+
+            const currentTabTasks = tasks || [];
+            const activeStatuses = [];
+            currentTabTasks.forEach(function(t) {
+                let s = (t.stage && t.stage !== '-') ? t.stage : (t.currentStatus || t.reviewStatus || 'New Task');
+                if (s && activeStatuses.indexOf(s) === -1) activeStatuses.push(s);
+            });
+
+            if (selectedStatusesSet.size === 0) {
+                selectedStatusesSet = new Set(activeStatuses);
+                selectedStatusesSet.delete(st);
+            } else if (selectedStatusesSet.has(st)) {
+                selectedStatusesSet.delete(st);
+            } else {
+                selectedStatusesSet.add(st);
+            }
+
+            if (selectedStatusesSet.size === activeStatuses.length || selectedStatusesSet.size === 0) {
+                selectedStatusesSet.clear();
+            }
+
+            syncStatusFilterDOM();
+            updateList();
+        }
+
+        function toggleAllStatuses(e) {
+            if (e) e.stopPropagation();
+            selectedStatusesSet.clear();
+            syncStatusFilterDOM();
+            updateList();
+        }
+
+        function clearStatusFilters(e) {
+            if (e) e.stopPropagation();
+            selectedStatusesSet.clear();
+            syncStatusFilterDOM();
+            updateList();
+        }
+
+        function syncStatusFilterDOM() {
+            const menu = document.getElementById('statusFilterMenu');
+            if (!menu) return;
+
+            const isAll = selectedStatusesSet.size === 0;
+            const allCheckbox = menu.querySelector('.status-filter-all-checkbox');
+            const allItem = menu.querySelector('.status-filter-all-item');
+            if (allCheckbox) allCheckbox.checked = isAll;
+            if (allItem) allItem.classList.toggle('active', isAll);
+
+            menu.querySelectorAll('.status-filter-status-item').forEach(function(item) {
+                const st = item.getAttribute('data-status');
+                const isChecked = isAll || selectedStatusesSet.has(st);
+                const cb = item.querySelector('.team-filter-checkbox');
+                if (cb) cb.checked = isChecked;
+                item.classList.toggle('active', isChecked);
+            });
+
+            updateStatusFilterButtonLabel();
+        }
+
         function updateStatusFilterButtonLabel() {
             const btn = document.getElementById('statusFilterBtn');
             const label = document.getElementById('selectedStatusLabel');
@@ -4150,31 +4240,6 @@
                 label.textContent = 'Status (' + selectedStatusesSet.size + ')';
                 btn.classList.add('has-filter');
             }
-        }
-
-        function toggleAllStatuses(e) {
-            if (e) e.stopPropagation();
-            selectedStatusesSet.clear();
-            setupStatusFilterDropdown();
-            updateList();
-        }
-
-        function toggleStatusItem(e, st) {
-            if (e) e.stopPropagation();
-            if (selectedStatusesSet.has(st)) {
-                selectedStatusesSet.delete(st);
-            } else {
-                selectedStatusesSet.add(st);
-            }
-            setupStatusFilterDropdown();
-            updateList();
-        }
-
-        function clearStatusFilters(e) {
-            if (e) e.stopPropagation();
-            selectedStatusesSet.clear();
-            setupStatusFilterDropdown();
-            updateList();
         }
 
         function closeStatusMenu(e) {
@@ -4193,17 +4258,6 @@
                 item.style.display = text.indexOf(query) >= 0 ? 'flex' : 'none';
             });
         }
-
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('#teamFilterBox')) {
-                const tm = document.getElementById('teamFilterMenu');
-                if (tm) tm.classList.add('hidden');
-            }
-            if (!e.target.closest('#statusFilterBox')) {
-                const sm = document.getElementById('statusFilterMenu');
-                if (sm) sm.classList.add('hidden');
-            }
-        });
 
         function onInitialDataError(err) {
             loadingOverlay.style.display = 'none';
