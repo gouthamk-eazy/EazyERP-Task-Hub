@@ -275,7 +275,8 @@ function getValueForHeader_(header, dataObj) {
     'contactperson': ['contactperson', 'assignee', 'contact'],
     'taskowner': ['taskowner', 'owner', 'creator'],
     'closedby': ['closedby'],
-    'closeddate': ['closeddate']
+    'closeddate': ['closeddate'],
+    'tags': ['tags', 'tag', 'issuetags', 'tasktags', 'category', 'categories']
   };
 
   if (ALIASES[hLower]) {
@@ -1453,11 +1454,33 @@ function getActiveTeammates() {
   }
 }
 
+var DEFAULT_TAGS = [
+  { name: 'Customer Master', color: '#2563eb' },
+  { name: 'Employee Management', color: '#7c3aed' },
+  { name: 'Syncing Issue', color: '#ea580c' },
+  { name: 'KM Issue', color: '#059669' },
+  { name: 'UI/UX', color: '#db2777' },
+  { name: 'Database', color: '#d97706' },
+  { name: 'Performance', color: '#dc2626' },
+  { name: 'Report', color: '#4b5563' }
+];
+
 /**
- * Returns dropdown options for Platform, Task Type, Priority.
+ * Returns dropdown options for Platform, Task Type, Priority, and Tags.
  * Reads from Config if available, otherwise returns defaults.
  */
 function getDropdownOptions() {
+  var tags = DEFAULT_TAGS;
+  try {
+    var rawTags = getConfig('MASTER_TAGS', '');
+    if (rawTags) {
+      var parsed = JSON.parse(rawTags);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        tags = parsed;
+      }
+    }
+  } catch (e) {}
+
   return {
     platforms: ['1.0', '2.0', 'Android 2.0', 'iPhone 2.0', 'Web Portal', 'Integration'],
     taskTypes: ['Issue', 'Customization', 'Understanding Gap'],
@@ -1466,7 +1489,8 @@ function getDropdownOptions() {
       { value: 'High', color: '#ea580c' },
       { value: 'Medium', color: '#d97706' },
       { value: 'Low', color: '#16a34a' }
-    ]
+    ],
+    tags: tags
   };
 }
 
@@ -1536,16 +1560,22 @@ function getInitialData(authOverride) {
  * Retrieves master configuration for web app.
  */
 function getMasterConfig() {
+  var mandatory = ['client', 'platform', 'type', 'priority'];
+  var tags = DEFAULT_TAGS;
   try {
-    var raw = getConfig('MANDATORY_FIELDS', '');
-    if (raw) {
-      return { success: true, config: { mandatoryFields: JSON.parse(raw) } };
-    }
+    var rawMandatory = getConfig('MANDATORY_FIELDS', '');
+    if (rawMandatory) mandatory = JSON.parse(rawMandatory);
   } catch (e) {}
+  try {
+    var rawTags = getConfig('MASTER_TAGS', '');
+    if (rawTags) tags = JSON.parse(rawTags);
+  } catch (e) {}
+
   return {
     success: true,
     config: {
-      mandatoryFields: ['client', 'platform', 'type', 'priority']
+      mandatoryFields: mandatory,
+      masterTags: tags
     }
   };
 }
@@ -1561,8 +1591,13 @@ function saveMasterConfig(configObj, authOverride) {
       throw new Error('Access denied: Only Super Admin can modify Master Configuration');
     }
 
-    if (configObj && configObj.mandatoryFields) {
-      setConfig('MANDATORY_FIELDS', JSON.stringify(configObj.mandatoryFields));
+    if (configObj) {
+      if (configObj.mandatoryFields) {
+        setConfig('MANDATORY_FIELDS', JSON.stringify(configObj.mandatoryFields));
+      }
+      if (configObj.masterTags) {
+        setConfig('MASTER_TAGS', JSON.stringify(configObj.masterTags));
+      }
     }
     return { success: true, message: 'Configuration saved successfully' };
   } catch (e) {
@@ -1692,6 +1727,7 @@ function confirmTask(reviewData, authOverride) {
       'Description': descVal,
       'Total Points': cleanVal(reviewData['Total Points'], existingNtrRow['Total Points']),
       'Chain': cleanVal(reviewData['Chain'], existingNtrRow['Chain']),
+      'Tags': cleanVal(reviewData['Tags'] || reviewData['tags'], existingNtrRow['Tags'] || existingNtrRow['tags']),
       'Is Exists?': 'Yes',
       'Closed By': '',
       'Closed Date': '',
@@ -1767,6 +1803,8 @@ function updateTaskInSheet(sheetConfigKey, updateData, authOverride) {
       if (updateData['Platform'] !== undefined) rowPayload['Platform'] = updateData['Platform'];
       if (updateData['Task Type'] !== undefined) rowPayload['Task Type'] = updateData['Task Type'];
       if (updateData['Priority'] !== undefined) rowPayload['Priority'] = updateData['Priority'];
+      if (updateData['Tags'] !== undefined) rowPayload['Tags'] = updateData['Tags'];
+      if (updateData['tags'] !== undefined) rowPayload['Tags'] = updateData['tags'];
       if (updateData["Goutham's Remarks"] !== undefined) rowPayload["Goutham's Remarks"] = updateData["Goutham's Remarks"];
     }
 

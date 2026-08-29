@@ -2389,6 +2389,86 @@
         .snooze-clear-btn:hover {
             background: var(--danger-bg);
         }
+        
+        /* Tag styling & Badge Chips */
+        .task-tag-chip {
+            font-size: 10.5px;
+            font-weight: 600;
+            padding: 1px 6px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+            letter-spacing: 0.2px;
+        }
+        .tag-color-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+        .config-tab-btn {
+            background: transparent;
+            border: none;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: var(--radius-md);
+            transition: all var(--transition-fast);
+        }
+        .config-tab-btn.active {
+            background: var(--brand-bg);
+            color: var(--brand);
+        }
+        .config-tags-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 220px;
+            overflow-y: auto;
+            margin-bottom: 12px;
+            padding-right: 4px;
+        }
+        .config-tag-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-light);
+            padding: 6px 10px;
+            border-radius: var(--radius-md);
+        }
+        .config-tag-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .config-tag-del-btn {
+            background: transparent;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+        }
+        .config-tag-del-btn:hover {
+            background: var(--danger-bg);
+        }
+        .config-add-tag-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
         .snooze-badge {
             font-size: 11px;
             font-weight: 600;
@@ -2858,6 +2938,26 @@
                                         </div>
                                     </div>
 
+                                    <!-- Tags (Multi Select) -->
+                                    <div class="edit-field full">
+                                        <div class="floating-label-group" id="dropdown-tags" data-type="multi" data-field="tags">
+                                            <span class="floating-label">Tags (Issue Category)</span>
+                                            <div class="custom-select">
+                                                <div class="selected-pills" id="display-tags"></div>
+                                                <i data-lucide="chevron-down" class="chevron"></i>
+                                            </div>
+                                            <div class="dropdown-menu" id="menu-tags">
+                                                <div class="dropdown-search">
+                                                    <input type="text" class="dropdown-search-input" placeholder="Search or add tags...">
+                                                </div>
+                                                <div class="dropdown-list" id="tagsDropList">
+                                                    <!-- Populated dynamically -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+
                                     <!-- Goutham's Remarks -->
                                     <div class="edit-field full">
                                         <div class="floating-label-group" id="group-goutham-remarks">
@@ -2948,7 +3048,12 @@
             </div>
             
             <div class="modal-body">
-                <div class="config-section">
+                <div class="config-tabs-nav" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-medium); padding-bottom: 8px;">
+                    <button class="config-tab-btn active" id="btnTabMandatory" type="button">Mandatory Fields</button>
+                    <button class="config-tab-btn" id="btnTabTags" type="button">Tags Master</button>
+                </div>
+
+                <div id="tabContentMandatory" class="config-section">
                     <div class="config-section-title">Mandatory Fields Configuration</div>
                     <div class="config-section-desc">
                         Select which fields must be filled before confirming a task into Master Data. Unchecked fields can be left blank.
@@ -3273,6 +3378,19 @@
             type: [],
             priority: []
         };
+        
+        const DEFAULT_MASTER_TAGS = [
+            { name: 'Customer Master', color: '#2563eb' },
+            { name: 'Employee Management', color: '#7c3aed' },
+            { name: 'Syncing Issue', color: '#ea580c' },
+            { name: 'KM Issue', color: '#059669' },
+            { name: 'UI/UX', color: '#db2777' },
+            { name: 'Database', color: '#d97706' },
+            { name: 'Performance', color: '#dc2626' },
+            { name: 'Report', color: '#4b5563' }
+        ];
+        let masterTagsList = [...DEFAULT_MASTER_TAGS];
+
         let mandatoryFields = ['client', 'platform', 'type', 'priority'];
         let activeFilter = 'all';
         let searchQuery = '';
@@ -3861,6 +3979,7 @@
                 }
             }
 
+            const rawTags = String(bTask['Tags'] || bTask['tags'] || bTask['Tag'] || bTask['tag'] || bTask['Issue Tags'] || bTask['Categories'] || '').trim();
             const normalizedStatus = rawStatus || rawRevStatus || (currentTab === 'new' ? 'New Task' : 'Active');
             const resolvedPriority = rawPriority || String(bTask['Priority'] || bTask['priority'] || bTask['My Priority'] || bTask['my priority'] || '');
 
@@ -3905,7 +4024,9 @@
                 rawTechRemarks: String(bTask['Tech Remarks'] || bTask['tech remarks'] || ''),
                 nextFollowUpDate: (rawFollow && rawFollow !== '-') ? formatDate(rawFollow) : '-',
                 rawFollowUp: rawFollow,
-                reviewStatus: rawRevStatus
+                reviewStatus: rawRevStatus,
+                tags: rawTags,
+                rawTags: rawTags
             };
         }
 
@@ -3954,6 +4075,12 @@
                     dropdownData.platforms = res.dropdowns.platforms || [];
                     dropdownData.taskTypes = res.dropdowns.taskTypes || [];
                     dropdownData.priorities = res.dropdowns.priorities || [];
+                    dropdownData.tags = (res.dropdowns && res.dropdowns.tags) || (res.config && res.config.masterTags) || DEFAULT_MASTER_TAGS;
+                    if (res.config && Array.isArray(res.config.masterTags) && res.config.masterTags.length > 0) {
+                        masterTagsList = res.config.masterTags;
+                    } else if (res.dropdowns && Array.isArray(res.dropdowns.tags) && res.dropdowns.tags.length > 0) {
+                        masterTagsList = res.dropdowns.tags;
+                    }
                 }
 
                 if (res.config && res.config.mandatoryFields) {
@@ -4853,6 +4980,7 @@
         function matchesTaskFuzzy(task, query) {
             if (!query) return true;
             return fuzzyMatch(task.title, query) ||
+                   fuzzyMatch(task.tags, query) ||
                    fuzzyMatch(task.bitrixId, query) ||
                    fuzzyMatch(task.clientName, query) ||
                    fuzzyMatch(task.owner, query) ||
@@ -5167,6 +5295,20 @@
                 const snoozeInfo = (typeof snoozeMap !== 'undefined' && snoozeMap[task.bitrixId]) ? snoozeMap[task.bitrixId] : null;
                 const snoozeBadgeHtml = snoozeInfo ? '<span class="snooze-badge" title="Reminder: ' + snoozeInfo.label + '">⏰ ' + snoozeInfo.label + '</span>' : '';
 
+                let tagsDisplay = '';
+                if (task.tags && task.tags !== '-') {
+                    const tList = String(task.tags).split(',').map(function(t) { return t.trim(); }).filter(Boolean);
+                    if (tList.length > 0) {
+                        tagsDisplay = '<div class="card-tags-row" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">' +
+                            tList.map(function(tStr) {
+                                const tObj = (dropdownData.tags || masterTagsList || []).find(function(m) { return (m.name || m.value || m).toLowerCase() === tStr.toLowerCase(); });
+                                const tColor = tObj ? (tObj.color || '#2563eb') : '#2563eb';
+                                return '<span class="task-tag-chip" style="background:' + tColor + '18; color:' + tColor + '; border:1px solid ' + tColor + '40;"><span class="tag-color-dot" style="background:' + tColor + ';"></span>' + tStr + '</span>';
+                            }).join('') +
+                        '</div>';
+                    }
+                }
+
                 card.innerHTML = 
                     '<div class="task-card-header" style="display:flex; align-items:flex-start; gap:8px;">' +
                         '<div onclick="event.stopPropagation();" style="display:inline-flex; align-items:center; padding-top:2px;">' +
@@ -5194,6 +5336,7 @@
                         ownerDisplay +
                         stageDisplay +
                     '</div>' +
+                    tagsDisplay +
                     '<div class="task-meta" style="margin-top: 6px;">' +
                         '<span class="bitrix-id">#' + task.bitrixId + '</span>' +
                         '<span style="color: var(--text-muted); font-size: 11px;">Created: ' + createdDisplay + '</span>' +
@@ -5245,7 +5388,19 @@
             if (dpEl && window.innerWidth <= 768) dpEl.classList.add('mobile-active');
             
             // Populate form data with existing task properties
-            formData = { client: [], platform: [], type: [], priority: [] };
+            formData = { client: [], platform: [], type: [], priority: [], tags: [] };
+            
+            if (task.tags && task.tags !== '-') {
+                formData.tags = String(task.tags).split(',').map(function(t) {
+                    const cleanT = t.trim();
+                    const tagObj = (dropdownData.tags || masterTagsList || []).find(function(m) { return (m.name || m.value || m).toLowerCase() === cleanT.toLowerCase(); });
+                    const color = tagObj ? (tagObj.color || '#2563eb') : '#2563eb';
+                    return {
+                        val: cleanT,
+                        content: '<span class="tag-color-dot" style="background:' + color + '"></span> <span>' + cleanT + '</span>'
+                    };
+                }).filter(function(t) { return t.val; });
+            }
             
             if (task.clientName && task.clientName !== '-') {
                 formData.client = [{ val: task.clientName, content: task.clientName }];
@@ -5475,6 +5630,7 @@
                 'Platform': formData.platform.map(function(c) { return c.val; }).join(', '),
                 'Task Type': formData.type.map(function(c) { return c.val; }).join(', '),
                 'Priority': formData.priority.map(function(c) { return c.val; }).join(', '),
+                'Tags': formData.tags ? formData.tags.map(function(c) { return c.val; }).join(', ') : (task.tags || ''),
                 "Goutham's Remarks": remarksInputVal || task.rawRemarks || (task.gouthamRemarks !== '-' ? task.gouthamRemarks : ''),
                 'Tech Remarks': techRemarksInputVal || task.rawTechRemarks || '',
                 'Next Follow Up Date': nextFollowInputVal || task.rawFollowUp || (task.nextFollowUpDate !== '-' ? task.nextFollowUpDate : '')
@@ -5571,6 +5727,7 @@
                 'Platform': formData.platform.map(function(c) { return c.val; }).join(', '),
                 'Task Type': formData.type.map(function(c) { return c.val; }).join(', '),
                 'Priority': formData.priority.map(function(c) { return c.val; }).join(', '),
+                'Tags': formData.tags ? formData.tags.map(function(c) { return c.val; }).join(', ') : (task.tags || ''),
                 "Goutham's Remarks": remarksInputVal,
                 'Tech Remarks': techRemarksInputVal,
                 'Next Follow Up Date': nextFollowInputVal
@@ -5581,6 +5738,7 @@
             task.platform = updateData['Platform'];
             task.taskType = updateData['Task Type'];
             task.priority = updateData['Priority'];
+            task.tags = updateData['Tags'];
             task.gouthamRemarks = remarksInputVal || '-';
             task.rawRemarks = remarksInputVal;
             task.techRemarks = techRemarksInputVal;
@@ -5631,6 +5789,7 @@
                 'Platform': formData.platform.map(function(c) { return c.val; }).join(', '),
                 'Task Type': formData.type.map(function(c) { return c.val; }).join(', '),
                 'Priority': formData.priority.map(function(c) { return c.val; }).join(', '),
+                'Tags': formData.tags ? formData.tags.map(function(c) { return c.val; }).join(', ') : (task.tags || ''),
                 "Goutham's Remarks": remarksInputVal,
                 'Tech Remarks': techRemarksInputVal,
                 'Next Follow Up Date': nextFollowInputVal
@@ -5641,6 +5800,7 @@
             task.platform = updateData['Platform'];
             task.taskType = updateData['Task Type'];
             task.priority = updateData['Priority'];
+            task.tags = updateData['Tags'];
             task.gouthamRemarks = remarksInputVal || '-';
             task.rawRemarks = remarksInputVal;
             task.techRemarks = techRemarksInputVal;
@@ -5758,6 +5918,16 @@
             buildItems('priorityDropList', dropdownData.priorities,
                 function(p) { return p.value || p; },
                 function(p) { return p.label || p.value || p; }
+            );
+
+            // Tags
+            buildItems('tagsDropList', dropdownData.tags || masterTagsList,
+                function(t) { return t.name || t.value || t; },
+                function(t) {
+                    const name = t.name || t.value || t;
+                    const color = t.color || '#2563eb';
+                    return '<span class="tag-color-dot" style="background:' + color + '"></span> <span>' + name + '</span>';
+                }
             );
 
             // Teammates (contact person field)
@@ -5977,7 +6147,81 @@
             });
         }
 
+        function renderMasterTagsList() {
+            const listEl = document.getElementById('configTagsList');
+            if (!listEl) return;
+            listEl.innerHTML = '';
+            (masterTagsList || []).forEach(function(tag, idx) {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'config-tag-item';
+                itemDiv.innerHTML = 
+                    '<div class="config-tag-badge">' +
+                        '<span class="tag-color-dot" style="background:' + (tag.color || '#2563eb') + '; width:10px; height:10px;"></span>' +
+                        '<span>' + (tag.name || tag) + '</span>' +
+                    '</div>' +
+                    '<button type="button" class="config-tag-del-btn" title="Delete Tag" data-idx="' + idx + '">' +
+                        icon('x') +
+                    '</button>';
+                
+                itemDiv.querySelector('.config-tag-del-btn').addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    masterTagsList.splice(idx, 1);
+                    dropdownData.tags = masterTagsList;
+                    renderMasterTagsList();
+                    populateDropdownMenus();
+                });
+                listEl.appendChild(itemDiv);
+            });
+            replaceIcons();
+        }
+
         function setupConfigModal() {
+            const btnTabMandatory = document.getElementById('btnTabMandatory');
+            const btnTabTags = document.getElementById('btnTabTags');
+            const tabContentMandatory = document.getElementById('tabContentMandatory');
+            const tabContentTags = document.getElementById('tabContentTags');
+            const btnAddTag = document.getElementById('btnAddMasterTag');
+            const newTagNameInput = document.getElementById('newTagNameInput');
+            const newTagColorInput = document.getElementById('newTagColorInput');
+
+            function switchConfigTab(tab) {
+                if (tab === 'mandatory') {
+                    if (btnTabMandatory) btnTabMandatory.classList.add('active');
+                    if (btnTabTags) btnTabTags.classList.remove('active');
+                    if (tabContentMandatory) tabContentMandatory.classList.remove('hidden');
+                    if (tabContentTags) tabContentTags.classList.add('hidden');
+                } else {
+                    if (btnTabTags) btnTabTags.classList.add('active');
+                    if (btnTabMandatory) btnTabMandatory.classList.remove('active');
+                    if (tabContentTags) tabContentTags.classList.remove('hidden');
+                    if (tabContentMandatory) tabContentMandatory.classList.add('hidden');
+                    renderMasterTagsList();
+                }
+            }
+
+            if (btnTabMandatory) btnTabMandatory.addEventListener('click', function() { switchConfigTab('mandatory'); });
+            if (btnTabTags) btnTabTags.addEventListener('click', function() { switchConfigTab('tags'); });
+
+            if (btnAddTag) {
+                btnAddTag.addEventListener('click', function() {
+                    const name = (newTagNameInput ? newTagNameInput.value : '').trim();
+                    const color = (newTagColorInput ? newTagColorInput.value : '#2563eb');
+                    if (!name) {
+                        showToast('Notice', 'Please enter a tag name.', true);
+                        return;
+                    }
+                    if (masterTagsList.some(function(t) { return (t.name || t).toLowerCase() === name.toLowerCase(); })) {
+                        showToast('Notice', 'Tag "' + name + '" already exists.', true);
+                        return;
+                    }
+                    masterTagsList.push({ name: name, color: color });
+                    dropdownData.tags = masterTagsList;
+                    if (newTagNameInput) newTagNameInput.value = '';
+                    renderMasterTagsList();
+                    populateDropdownMenus();
+                    showToast('Tag Added', 'Added tag: ' + name);
+                });
+            }
             const modalBackdrop = document.getElementById('configModalBackdrop');
             const btnOpenLeft = document.getElementById('btnOpenConfig');
             const btnOpenRight = document.getElementById('btnRightSettings');
@@ -6048,7 +6292,7 @@
                                     showToast('Configuration Saved', 'Mandatory fields updated in sheet and app.');
                                 }
                             })
-                            .saveMasterConfig({ mandatoryFields: mandatoryFields });
+                            .saveMasterConfig({ mandatoryFields: mandatoryFields, masterTags: masterTagsList });
                     } else {
                         showToast('Configuration Saved', 'Mandatory fields updated.');
                     }
