@@ -2657,7 +2657,7 @@
                                 </div>
                             </div>
                             <div class="nav-controls" style="display: flex; align-items: center; gap: 8px;">
-                                                                <button class="btn-header-action" id="btnSnoozeReminder" title="Snooze / Set Reminder" onclick="toggleSnoozeMenu(event)">
+                                <button class="btn-header-action" id="btnSnoozeReminder" title="Snooze / Set Reminder">
                                     <i data-lucide="clock"></i>
                                     <span id="snoozeBtnText">Reminder</span>
                                 </button>
@@ -4551,8 +4551,16 @@
         setInterval(checkDueReminders, 20000);
 
         let activeSnoozeTargetId = null;
+        let _lastSnoozeToggleTime = 0;
 
         function toggleSnoozeMenu(event, specificTaskId) {
+            const now = Date.now();
+            if (now - _lastSnoozeToggleTime < 250) {
+                console.log('[REMINDER DEBUG] Debounced duplicate toggle invocation ignored.');
+                return;
+            }
+            _lastSnoozeToggleTime = now;
+
             console.log('[REMINDER DEBUG] toggleSnoozeMenu triggered with specificTaskId:', specificTaskId, 'selectedTaskId:', selectedTaskId);
             if (event) {
                 if (typeof event.stopPropagation === 'function') event.stopPropagation();
