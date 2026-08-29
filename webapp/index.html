@@ -941,25 +941,76 @@
             position: relative;
         }
 
-        /* Task List Panel (Left) */
+        /* Task List Panel (Left - 30%) */
         .task-list-panel {
-            width: 360px;
-            min-width: 320px;
-            max-width: 420px;
+            width: 30%;
+            min-width: 290px;
+            max-width: 35%;
             border-right: 1px solid var(--border-medium);
             display: flex;
             flex-direction: column;
             background: var(--bg-tertiary);
+            flex-shrink: 0;
         }
 
         .panel-header {
-            padding: var(--space-md) var(--space-lg);
+            padding: var(--space-sm) var(--space-md);
             border-bottom: 1px solid var(--border-medium);
             display: flex;
             align-items: center;
             justify-content: space-between;
             flex-shrink: 0;
             background: var(--bg-secondary);
+            min-height: 48px;
+        }
+
+        /* Gmail-style Bulk Action Toolbar */
+        .task-bulk-checkbox {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: var(--brand);
+            border-radius: 3px;
+            margin: 0;
+            vertical-align: middle;
+        }
+
+        .bulk-actions-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .bulk-action-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-medium);
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            padding: 0;
+        }
+
+        .bulk-action-btn:hover {
+            background: var(--brand-bg);
+            color: var(--brand);
+            border-color: var(--brand-light);
+        }
+
+        .bulk-action-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .task-card.bulk-selected {
+            background: var(--brand-bg) !important;
+            border-left-color: var(--brand) !important;
+            box-shadow: inset 0 0 0 1px var(--brand-light);
         }
 
         .panel-title {
@@ -1253,13 +1304,15 @@
             height: 14px;
         }
 
-        /* Task Detail Panel (Right) */
+        /* Task Detail Panel (Right - 70%) */
         .task-detail-panel {
             flex: 1;
+            width: 70%;
             display: flex;
             flex-direction: column;
             background: var(--bg-primary);
             position: relative;
+            min-width: 0;
         }
 
         .detail-header {
@@ -2544,12 +2597,33 @@
                 <!-- Task List Panel -->
                 <aside class="task-list-panel">
                     <div class="panel-header">
-                        <div class="panel-title" id="panelTitle">
-                            <i data-lucide="inbox" id="panelTitleIcon"></i> <span id="panelTitleText">New Tasks</span>
-                            <span class="badge-count" id="headerCountBadge">0</span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="selectAllCheckbox" class="task-bulk-checkbox" title="Select / Deselect all visible tasks" onchange="toggleSelectAllBulk(this.checked)">
+                            <div class="panel-title" id="panelTitle" style="margin: 0;">
+                                <i data-lucide="inbox" id="panelTitleIcon"></i> <span id="panelTitleText">New Tasks</span>
+                                <span class="badge-count" id="headerCountBadge">0</span>
+                            </div>
                         </div>
-                        <div class="icon-btn" style="width: 28px; height: 28px; border: none; background: transparent;">
-                            <i data-lucide="filter" style="width: 14px; height: 14px;"></i>
+                        <div id="bulkActionsToolbar" class="bulk-actions-toolbar hidden">
+                            <span id="bulkSelectedCount" style="font-size: 11px; font-weight: 700; color: var(--brand); white-space: nowrap; margin-right: 2px;">0</span>
+                            <button class="bulk-action-btn" title="Mark as Read" onclick="executeBulkAction('mark_read')">
+                                <i data-lucide="check"></i>
+                            </button>
+                            <button class="bulk-action-btn" title="Mark as Unread" onclick="executeBulkAction('mark_unread')">
+                                <i data-lucide="mail"></i>
+                            </button>
+                            <button class="bulk-action-btn" title="Star as Important" onclick="executeBulkAction('star')">
+                                <i data-lucide="star"></i>
+                            </button>
+                            <button class="bulk-action-btn" title="Set Reminder / Snooze" onclick="executeBulkAction('snooze', event)">
+                                <i data-lucide="clock"></i>
+                            </button>
+                            <button class="bulk-action-btn" id="btnBulkMove" title="Confirm / Move Selected" onclick="executeBulkAction('move')">
+                                <i data-lucide="arrow-right-circle"></i>
+                            </button>
+                            <button class="bulk-action-btn" title="Deselect All" onclick="clearBulkSelection()">
+                                <i data-lucide="x"></i>
+                            </button>
                         </div>
                     </div>
                     
@@ -3096,7 +3170,10 @@
             'cloud-download': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></svg>',
             'rotate-cw': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>',
             'archive': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>',
-            'shield-alert': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>'
+            'shield-alert': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>',
+            'arrow-right-circle': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="m12 16 4-4-4-4"/></svg>',
+            'check-check': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg>',
+            'trash-2': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>'
         };
 
         function icon(name) {
@@ -3128,6 +3205,7 @@
         let currentUserAuth = null;
         let selectedTeammateFilter = 'ALL';
         let currentTab = 'new'; // 'new' | 'master' | 'closed' | 'archive'
+        let bulkSelectedTaskIds = new Set();
         let allTasksByTab = {
             new: [],
             master: [],
@@ -3477,6 +3555,7 @@
 
             // 4. Update action buttons and rebuild filters for active tab
             updateActionBarForTab();
+            clearBulkSelection();
             selectedTeammatesSet.clear();
             selectedStatusesSet.clear();
             setupTeamFilterDropdown();
@@ -4549,31 +4628,52 @@
 
         function setTaskSnoozeTimestamp(timestampMs, label) {
             const targetId = activeSnoozeTargetId || selectedTaskId;
-            if (!targetId) return;
-            const task = tasks.find(function(t) { return t.id === targetId; });
-            if (!task) return;
+            if (!targetId && bulkSelectedTaskIds.size === 0) return;
 
-            snoozeMap[task.bitrixId] = {
-                time: timestampMs,
-                label: label,
-                notified: false,
-                setAt: Date.now()
-            };
+            const formattedDate = new Date(timestampMs).toISOString().split('T')[0];
+
+            if (bulkSelectedTaskIds.size > 1 && bulkSelectedTaskIds.has(targetId)) {
+                bulkSelectedTaskIds.forEach(function(tid) {
+                    const t = tasks.find(function(x) { return x.id === tid; });
+                    if (t) {
+                        snoozeMap[t.bitrixId] = {
+                            time: timestampMs,
+                            label: label,
+                            notified: false,
+                            setAt: Date.now()
+                        };
+                        callBackend('updateTask', {
+                            sheetGidKey: getSheetKeyForCurrentTab(),
+                            taskData: {
+                                'Bitrix ID': t.bitrixId,
+                                'Next Follow Up Date': formattedDate
+                            }
+                        }).catch(function(err) { console.warn('Follow-up date sync note:', err); });
+                    }
+                });
+                showToast('Reminders Set', 'Reminder set for ' + bulkSelectedTaskIds.size + ' tasks at ' + label);
+            } else {
+                const task = tasks.find(function(t) { return t.id === targetId; });
+                if (!task) return;
+
+                snoozeMap[task.bitrixId] = {
+                    time: timestampMs,
+                    label: label,
+                    notified: false,
+                    setAt: Date.now()
+                };
+                callBackend('updateTask', {
+                    sheetGidKey: getSheetKeyForCurrentTab(),
+                    taskData: {
+                        'Bitrix ID': task.bitrixId,
+                        'Next Follow Up Date': formattedDate
+                    }
+                }).catch(function(err) { console.warn('Follow-up date sync note:', err); });
+                showToast('Reminder Set', 'Reminder for #' + task.bitrixId + ' scheduled for ' + label);
+            }
 
             try { localStorage.setItem(SNOOZE_STORAGE_KEY, JSON.stringify(snoozeMap)); } catch(e) {}
-            
-            // Also sync as Next Follow Up Date in background to Google Sheet
-            const formattedDate = new Date(timestampMs).toISOString().split('T')[0];
-            callBackend('updateTask', {
-                sheetGidKey: getSheetKeyForCurrentTab(),
-                taskData: {
-                    'Bitrix ID': task.bitrixId,
-                    'Next Follow Up Date': formattedDate
-                }
-            }).catch(function(err) { console.warn('Follow-up date sync note:', err); });
-
             closeSnoozeMenu();
-            showToast('Reminder Set', 'Reminder for #' + task.bitrixId + ' scheduled for ' + label);
             updateList();
         }
 
@@ -4778,11 +4878,166 @@
 
         }
 
+        // --- Bulk Selection & Immediate Actions (Gmail style) ---
+        function toggleBulkSelectTask(taskId, isChecked) {
+            if (isChecked) {
+                bulkSelectedTaskIds.add(taskId);
+            } else {
+                bulkSelectedTaskIds.delete(taskId);
+            }
+            syncBulkSelectionUI();
+        }
+
+        function toggleSelectAllBulk(isChecked) {
+            if (isChecked) {
+                visibleTasks.forEach(function(t) {
+                    bulkSelectedTaskIds.add(t.id);
+                });
+            } else {
+                bulkSelectedTaskIds.clear();
+            }
+            syncBulkSelectionUI();
+        }
+
+        function clearBulkSelection() {
+            bulkSelectedTaskIds.clear();
+            syncBulkSelectionUI();
+        }
+
+        function syncBulkSelectionUI() {
+            const totalVisible = visibleTasks.length;
+            const selectedCount = bulkSelectedTaskIds.size;
+
+            // 1. Header Checkbox
+            const selectAllCb = document.getElementById('selectAllCheckbox');
+            if (selectAllCb) {
+                if (selectedCount === 0) {
+                    selectAllCb.checked = false;
+                    selectAllCb.indeterminate = false;
+                } else if (totalVisible > 0 && selectedCount === totalVisible) {
+                    selectAllCb.checked = true;
+                    selectAllCb.indeterminate = false;
+                } else {
+                    selectAllCb.checked = false;
+                    selectAllCb.indeterminate = true;
+                }
+            }
+
+            // 2. Card Checkboxes & Styles
+            document.querySelectorAll('.task-card').forEach(function(card) {
+                const cb = card.querySelector('.task-bulk-checkbox');
+                if (cb) {
+                    const taskId = cb.getAttribute('data-task-id');
+                    const isChecked = bulkSelectedTaskIds.has(taskId);
+                    cb.checked = isChecked;
+                    card.classList.toggle('bulk-selected', isChecked);
+                }
+            });
+
+            // 3. Header Toolbar
+            const bulkToolbar = document.getElementById('bulkActionsToolbar');
+            const bulkCountEl = document.getElementById('bulkSelectedCount');
+            const btnBulkMove = document.getElementById('btnBulkMove');
+
+            if (selectedCount > 0) {
+                if (bulkToolbar) bulkToolbar.classList.remove('hidden');
+                if (bulkCountEl) bulkCountEl.textContent = selectedCount + ' selected';
+                if (btnBulkMove) {
+                    if (currentTab === 'new') {
+                        btnBulkMove.title = 'Confirm & Move Selected to Master';
+                    } else if (currentTab === 'master') {
+                        btnBulkMove.title = 'Move Selected to Closed';
+                    } else {
+                        btnBulkMove.title = 'Move Selected to Archive';
+                    }
+                }
+            } else {
+                if (bulkToolbar) bulkToolbar.classList.add('hidden');
+            }
+        }
+
+        function executeBulkAction(action, event) {
+            if (bulkSelectedTaskIds.size === 0) {
+                showToast('Notice', 'Please select at least one task first.');
+                return;
+            }
+
+            const selectedTasks = tasks.filter(function(t) { return bulkSelectedTaskIds.has(t.id); });
+            if (selectedTasks.length === 0) return;
+
+            if (action === 'mark_read') {
+                selectedTasks.forEach(function(t) {
+                    markAsRead(t.bitrixId);
+                });
+                showToast('Marked as Read', selectedTasks.length + ' task(s) marked as read.');
+                updateList();
+            } else if (action === 'mark_unread') {
+                const set = getReadSet();
+                selectedTasks.forEach(function(t) {
+                    delete set[String(t.bitrixId)];
+                });
+                saveReadSet(set);
+                showToast('Marked as Unread', selectedTasks.length + ' task(s) marked as unread.');
+                updateList();
+                updateDetailActionsUI();
+            } else if (action === 'star') {
+                const set = getStarredSet();
+                let allStarred = selectedTasks.every(function(t) { return !!set[String(t.bitrixId)]; });
+                selectedTasks.forEach(function(t) {
+                    if (allStarred) {
+                        delete set[String(t.bitrixId)];
+                    } else {
+                        set[String(t.bitrixId)] = true;
+                    }
+                });
+                saveStarredSet(set);
+                showToast('Star Updated', (allStarred ? 'Unstarred ' : 'Starred ') + selectedTasks.length + ' task(s).');
+                updateList();
+                updateDetailActionsUI();
+            } else if (action === 'snooze') {
+                toggleSnoozeMenu(event, selectedTasks[0].id);
+            } else if (action === 'move') {
+                if (currentTab === 'new') {
+                    showToast('Processing', 'Moving ' + selectedTasks.length + ' task(s) to Master Sheet...');
+                    selectedTasks.forEach(function(t) {
+                        removeTaskAndNext(t.id);
+                    });
+                    clearBulkSelection();
+                    showToast('Tasks Moved', selectedTasks.length + ' task(s) added to Master Sheet.');
+                } else if (currentTab === 'master') {
+                    showToast('Processing', 'Moving ' + selectedTasks.length + ' task(s) to Closed Sheet...');
+                    selectedTasks.forEach(function(t) {
+                        allTasksByTab.master = (allTasksByTab.master || []).filter(function(x) { return x.id !== t.id; });
+                        allTasksByTab.closed = allTasksByTab.closed || [];
+                        allTasksByTab.closed.unshift(t);
+                    });
+                    updateTabBadges();
+                    tasks = allTasksByTab[currentTab] || [];
+                    clearBulkSelection();
+                    updateList();
+                    showToast('Tasks Moved', selectedTasks.length + ' task(s) moved to Closed Sheet.');
+                } else {
+                    showToast('Processing', 'Moving ' + selectedTasks.length + ' task(s) to Archive...');
+                    selectedTasks.forEach(function(t) {
+                        allTasksByTab[currentTab] = (allTasksByTab[currentTab] || []).filter(function(x) { return x.id !== t.id; });
+                        allTasksByTab.archive = allTasksByTab.archive || [];
+                        allTasksByTab.archive.unshift(t);
+                    });
+                    updateTabBadges();
+                    tasks = allTasksByTab[currentTab] || [];
+                    clearBulkSelection();
+                    updateList();
+                    showToast('Tasks Archived', selectedTasks.length + ' task(s) moved to Archive.');
+                }
+            }
+        }
+
         function renderList() {
             taskListEl.innerHTML = '';
             
             if (visibleTasks.length === 0) {
                 taskListEl.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">No tasks match your filters.</div>';
+                syncBulkSelectionUI();
                 return;
             }
 
@@ -4791,8 +5046,9 @@
                 const isSelected = task.id === selectedTaskId;
                 const isTaskRead = isRead(task.bitrixId);
                 const isTaskStarred = isStarred(task.bitrixId);
+                const isBulkSelected = bulkSelectedTaskIds.has(task.id);
 
-                card.className = 'task-card ' + (isSelected ? 'selected ' : ' ') + (isTaskRead ? 'read' : 'unread');
+                card.className = 'task-card ' + (isSelected ? 'selected ' : ' ') + (isTaskRead ? 'read' : 'unread') + (isBulkSelected ? ' bulk-selected' : '');
                 card.style.animationDelay = (index * 0.04) + 's';
                 card.onclick = function() { selectTask(task.id); };
 
@@ -4812,8 +5068,11 @@
                 const snoozeBadgeHtml = snoozeInfo ? '<span class="snooze-badge" title="Reminder: ' + snoozeInfo.label + '">⏰ ' + snoozeInfo.label + '</span>' : '';
 
                 card.innerHTML = 
-                    '<div class="task-card-header">' +
-                        '<div style="display: flex; align-items: center; flex: 1; overflow: hidden; padding-right: 6px;">' +
+                    '<div class="task-card-header" style="display:flex; align-items:flex-start; gap:8px;">' +
+                        '<div onclick="event.stopPropagation();" style="display:inline-flex; align-items:center; padding-top:2px;">' +
+                            '<input type="checkbox" class="task-bulk-checkbox" data-task-id="' + task.id + '" ' + (isBulkSelected ? 'checked' : '') + ' onchange="toggleBulkSelectTask(\'' + task.id + '\', this.checked)">' +
+                        '</div>' +
+                        '<div style="display: flex; align-items: center; flex: 1; overflow: hidden; padding-right: 4px;">' +
                             unreadDotHtml +
                             '<div class="task-title">' + task.title + '</div>' +
                         '</div>' +
@@ -4845,6 +5104,7 @@
                 taskListEl.appendChild(card);
             });
             
+            syncBulkSelectionUI();
             replaceIcons();
         }
 
